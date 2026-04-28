@@ -1,88 +1,80 @@
+using System.Collections.Generic;
 using Chronocaust.Ecs.Components;
 using Chronocaust.Ecs.Core;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace Chronocaust.Ecs.Systems
 {
     public sealed class WeaponShootSystem : IEcsUpdateSystem
     {
+        // Pre-allocated — no heap alloc each frame.
+        private readonly List<ProjectileSpawnPayload> _pending = new List<ProjectileSpawnPayload>(8);
+
+        private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent,
+            AimComponent, EquippedWeaponComponent, WeaponCooldownComponent> _query;
+
         public void Update(EcsWorld world, float deltaTime)
         {
-            List<(Vector3 position, Vector2 direction, WeaponComponent weapon)> pendingShots =
-                new List<(Vector3 position, Vector2 direction, WeaponComponent weapon)>();
+            _query ??= world.CreateQuery<PlayerTagComponent, TransformComponent, InputStateComponent,
+                AimComponent, EquippedWeaponComponent, WeaponCooldownComponent>();
 
-            foreach (EcsEntity entity in world.Entities)
+            _pending.Clear();
+
+            _query.ForEach((EntityId id,
+                ref PlayerTagComponent _,
+                ref TransformComponent transform,
+                ref InputStateComponent input,
+                ref AimComponent aim,
+                ref EquippedWeaponComponent equipped,
+                ref WeaponCooldownComponent cooldown) =>
             {
-                if (!entity.Has<PlayerTagComponent>() ||
-                    !entity.TryGet(out TransformComponent ownerTransform) ||
-                    !entity.TryGet(out InputStateComponent inputState) ||
-                    !entity.TryGet(out AimComponent aimComponent) ||
-                    !entity.TryGet(out WeaponComponent weaponComponent) ||
-                    !entity.TryGet(out WeaponCooldownComponent cooldownComponent) ||
-                    ownerTransform.Transform == null)
+                // Decrement relative timer — no Time.time dependency.
+                if (cooldown.CooldownRemaining > 0f)
                 {
-                    continue;
+                    cooldown.CooldownRemaining -= deltaTime;
                 }
 
-                if (!inputState.FirePressed || Time.time < cooldownComponent.NextShotTime)
+                if (!equipped.HasWeapon ||
+                    !input.FirePressed ||
+                    cooldown.CooldownRemaining > 0f ||
+                    transform.Transform == null)
                 {
-                    continue;
+                    return;
                 }
 
-                Vector2 shootDirection = aimComponent.Direction.sqrMagnitude > 0.0001f
-                    ? aimComponent.Direction
-                    : Vector2.right;
+                Vector2 shootDir = aim.Direction.sqrMagnitude > 0.0001f ? aim.Direction : Vector2.right;
+                Vector2 rotatedOffset = RotateVector(equipped.MuzzleOffset, shootDir);
 
-                Vector2 rotatedOffset = RotateVector(weaponComponent.MuzzleOffset, shootDirection);
-                Vector3 spawnPosition = ownerTransform.Transform.position + (Vector3)rotatedOffset;
-                pendingShots.Add((spawnPosition, shootDirection, weaponComponent));
+                _pending.Add(new ProjectileSpawnPayload
+                {
+                    Position = transform.Transform.position + (Vector3)rotatedOffset,
+                    Direction = shootDir,
+                    Speed = equipped.ProjectileSpeed,
+                    Lifetime = equipped.ProjectileLifetime,
+                    ProjectileSprite = equipped.ProjectileSprite,
+                    FallbackSprite = equipped.WeaponSprite,
+                    ProjectileScale = equipped.ProjectileSpriteScale > 0f ? equipped.ProjectileSpriteScale : 1f,
+                    SortingOrder = equipped.ProjectileSortingOrder
+                });
 
-                float cooldown = weaponComponent.FireRate > 0f ? 1f / weaponComponent.FireRate : 0.1f;
-                cooldownComponent.NextShotTime = Time.time + cooldown;
-            }
+                cooldown.CooldownRemaining = 1f / equipped.FireRate;
+            });
 
-            foreach ((Vector3 position, Vector2 direction, WeaponComponent weapon) shot in pendingShots)
+            // Queue spawns after iteration (structural changes deferred via CommandBuffer).
+            int count = _pending.Count;
+            for (int i = 0; i < count; i++)
             {
-                SpawnProjectile(world, shot.position, shot.direction, shot.weapon);
+                ProjectileSpawnPayload p = _pending[i];
+                world.CommandBuffer.EnqueueSpawnProjectile(in p);
             }
         }
 
-        private static void SpawnProjectile(EcsWorld world, Vector3 position, Vector2 direction, WeaponComponent weaponComponent)
-        {
-            EcsEntity projectile = world.CreateEntity();
-            GameObject projectileObject = new GameObject("Projectile");
-            projectileObject.transform.position = position;
-            projectileObject.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
-
-            SpriteRenderer renderer = projectileObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = weaponComponent.ProjectileSprite != null
-                ? weaponComponent.ProjectileSprite
-                : weaponComponent.WeaponSprite;
-            renderer.sortingOrder = 90;
-
-            projectile.Add(new TransformComponent
-            {
-                Transform = projectileObject.transform
-            });
-
-            projectile.Add(new ProjectileComponent
-            {
-                Direction = direction,
-                Speed = weaponComponent.ProjectileSpeed,
-                TimeLeft = weaponComponent.ProjectileLifetime
-            });
-        }
-
-        private static Vector2 RotateVector(Vector2 localOffset, Vector2 forward)
+        private static Vector2 RotateVector(Vector2 local, Vector2 forward)
         {
             float angle = Mathf.Atan2(forward.y, forward.x);
             float sin = Mathf.Sin(angle);
             float cos = Mathf.Cos(angle);
-            return new Vector2(
-                localOffset.x * cos - localOffset.y * sin,
-                localOffset.x * sin + localOffset.y * cos
-            );
+            return new Vector2(local.x * cos - local.y * sin, local.x * sin + local.y * cos);
         }
     }
 }
