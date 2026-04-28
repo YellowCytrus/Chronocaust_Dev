@@ -12,9 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ae4b31038c606192b211e908523aa8c, type: 3}
   m_Name: WD_Pistol
   m_EditorClassIdentifier: 
-  WeaponSprite: {fileID: 0}
-  ProjectileSprite: {fileID: 0}
+  WeaponSprite: {fileID: 21300000, guid: fcfdfdad9131a211ab53585b135ec62d, type: 3}
+  ProjectileSprite: {fileID: 21300000, guid: be8c334fb930ee5bb9716bb72a57b328, type: 3}
+  WeaponSpriteScale: 3
+  ProjectileSpriteScale: 10
+  WeaponSortingOrder: 121
+  ProjectileSortingOrder: 90
   FireRate: 6
   ProjectileSpeed: 10
   ProjectileLifetime: 2
-  MuzzleOffset: {x: 0.45, y: 0}
+  MuzzleOffset: {x: -0.1, y: 0.1}
+  MovementSpeedMultiplier: 1
