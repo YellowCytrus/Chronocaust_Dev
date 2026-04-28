@@ -5,21 +5,22 @@ namespace Chronocaust.Ecs.Systems
 {
     public sealed class ProjectileLifetimeSystem : IEcsUpdateSystem
     {
+        private EcsQuery<ProjectileComponent, TransformComponent> _query;
+
         public void Update(EcsWorld world, float deltaTime)
         {
-            foreach (EcsEntity entity in world.Entities)
-            {
-                if (!entity.TryGet(out ProjectileComponent projectile))
-                {
-                    continue;
-                }
+            _query ??= world.CreateQuery<ProjectileComponent, TransformComponent>();
 
+            _query.ForEach((EntityId id,
+                ref ProjectileComponent projectile,
+                ref TransformComponent _) =>
+            {
                 projectile.TimeLeft -= deltaTime;
                 if (projectile.TimeLeft <= 0f)
                 {
-                    world.DestroyEntity(entity);
+                    world.DestroyEntity(id);
                 }
-            }
+            });
         }
     }
 }

@@ -6,28 +6,26 @@ namespace Chronocaust.Ecs.Systems
 {
     public sealed class PlayerAimSystem : IEcsUpdateSystem
     {
+        private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent, AimComponent> _query;
+
         public void Update(EcsWorld world, float deltaTime)
         {
-            foreach (EcsEntity entity in world.Entities)
+            _query ??= world.CreateQuery<PlayerTagComponent, TransformComponent, InputStateComponent, AimComponent>();
+
+            _query.ForEach((EntityId id,
+                ref PlayerTagComponent _,
+                ref TransformComponent transform,
+                ref InputStateComponent input,
+                ref AimComponent aim) =>
             {
-                if (!entity.Has<PlayerTagComponent>() ||
-                    !entity.TryGet(out TransformComponent transformComponent) ||
-                    !entity.TryGet(out InputStateComponent inputState) ||
-                    !entity.TryGet(out AimComponent aimComponent) ||
-                    transformComponent.Transform == null)
-                {
-                    continue;
-                }
+                if (transform.Transform == null) return;
 
-                Vector2 origin = transformComponent.Transform.position;
-                Vector2 target = inputState.MouseWorldPosition;
-                Vector2 dir = (target - origin);
-
+                Vector2 dir = (Vector2)input.MouseWorldPosition - (Vector2)transform.Transform.position;
                 if (dir.sqrMagnitude > 0.0001f)
                 {
-                    aimComponent.Direction = dir.normalized;
+                    aim.Direction = dir.normalized;
                 }
-            }
+            });
         }
     }
 }
