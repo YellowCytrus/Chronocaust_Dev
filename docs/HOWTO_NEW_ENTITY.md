@@ -42,21 +42,43 @@ ComponentSignature sig = ComponentSignature.Empty
     .With<InputStateComponent>()
     .With<AimComponent>()
     .With<MovementComponent>()
-    .With<RigidbodyComponent>()
-    .With<CharacterRenderComponent>();
+    .With<EquippedWeaponComponent>() // Игрок всегда имеет слот под оружие
+    .With<WeaponCooldownComponent>()
+    .With<WeaponViewComponent>();
 
 EntityId player = world.CreateEntity(sig);
+
+PlayerAuthoring playerAuthoring = playerTransform.GetComponent<PlayerAuthoring>();
+if (playerAuthoring == null) Debug.LogWarning("Missing PlayerAuthoring on player.");
 
 world.GetComponent<TransformComponent>(player).Transform = playerTransform;
 
 ref MovementComponent m = ref world.GetComponent<MovementComponent>(player);
-m.Speed = 5f;
-m.UseIsometricAxes = true;
-m.IsometricRightAxis = new Vector2(1f, 0.5f);
-m.IsometricUpAxis   = new Vector2(-1f, 0.5f);
+if (playerAuthoring != null)
+{
+    m.BaseSpeed = playerAuthoring.BaseMovementSpeed;
+    m.UseIsometricAxes = playerAuthoring.UseIsometricAxes;
+    m.IsometricRightAxis = playerAuthoring.IsometricRightAxis;
+    m.IsometricUpAxis = playerAuthoring.IsometricUpAxis;
+}
+else
+{
+    m.BaseSpeed = 5f; // Default if no authoring
+    m.UseIsometricAxes = true;
+    m.IsometricRightAxis = new Vector2(1f, 0.5f);
+    m.IsometricUpAxis = new Vector2(-1f, 0.5f);
+}
 
-world.GetComponent<RigidbodyComponent>(player).Rigidbody = rb;
-world.GetComponent<CharacterRenderComponent>(player).Renderer = isoRenderer;
+world.GetComponent<RigidbodyComponent>(player).Rigidbody = rb; // rb comes from Unity's Rigidbody2D
+world.GetComponent<CharacterRenderComponent>(player).Renderer = isoRenderer; // isoRenderer from Unity's IsometricCharacterRenderer
+
+// EquippedWeaponComponent по умолчанию пуст. Если в EcsCombatBootstrap задано startingWeapon,
+// его поля будут заполнены из WeaponDefinition. Иначе — игрок стартует без оружия.
+
+world.GetComponent<WeaponCooldownComponent>(player).CooldownRemaining = 0f; // Начальный кулдаун
+
+// WeaponViewComponent инициализируется в EcsCombatBootstrap через CreateWeaponViewObject
+// и связывается с GameObject-ом, который отображает оружие.
 ```
 
 ### Example: Enemy character
@@ -106,7 +128,7 @@ public sealed class EnemyHealthSystem : IEcsUpdateSystem
             // Direct array access — no Has(), no TryGet(), guaranteed presence.
             if (hp.Current <= 0f)
             {
-                world.DestroyEntity(id); // queued, applied after ForEach
+                world.CommandBuffer.DestroyEntity(id); // queued, applied after ForEach
             }
         });
     }
@@ -121,7 +143,27 @@ world.AddSystem(new EnemyHealthSystem());
 
 ---
 
-## Step 4 — Add a component to an existing entity at runtime
+## Step 4 — Creating Ground Weapons (Pickups)
+
+Instead of configuring a large list in `EcsCombatBootstrap`, each ground weapon is defined directly in the Unity scene using a `GroundWeaponAuthoring` MonoBehaviour.
+
+1. **Create WeaponDefinition Assets:**
+   - In your Project window, right-click -> `Create -> Chronocaust -> ECS -> Weapon Definition`.
+   - Name it (e.g., `WD_Pistol`, `WD_Shotgun`).
+   - Fill in its `Visuals` (sprites, scales, sorting order), `Stats` (fire rate, speed, lifetime, muzzle offset), and `Character Modifiers` (movement speed multiplier).
+
+2. **Place a Ground Weapon in the Scene:**
+   - Create a new `GameObject` in your scene (e.g., `GroundWeapon_Pistol`).
+   - Position it where you want the weapon to appear.
+   - Add a `SpriteRenderer` component to this GameObject and assign its sprite (e.g., `WD_Pistol.WeaponSprite`). Configure its `Sorting Layer` and `Order in Layer` as needed for how it appears on the ground.
+   - Add the `GroundWeaponAuthoring` component to this GameObject.
+   - In the `GroundWeaponAuthoring` component, drag and drop your created `WeaponDefinition` (e.g., `WD_Pistol`) into the `Definition` field.
+
+At runtime, `EcsCombatBootstrap` will find all `GroundWeaponAuthoring` components in the scene and convert them into ECS entities (with `GroundWeaponTagComponent`, `TransformComponent`, and `WeaponComponent`). When a player interacts with it, `WeaponPickupSystem` handles the transfer of data and removal of the GameObject.
+
+---
+
+## Step 5 — Add a component to an existing entity at runtime
 
 Structural changes must go through `CommandBuffer` so they happen outside of active iteration.
 
@@ -177,6 +219,8 @@ Fill values        → ref T c = ref world.GetComponent<T>(id); c.Field = value;
 Write a system     → IEcsUpdateSystem / IEcsFixedUpdateSystem; cache EcsQuery<...>
 Iterate            → _query.ForEach((id, ref T1, ref T2) => { ... })
 Deferred ops       → world.CommandBuffer.AddComponent / RemoveComponent / DestroyEntity
-Destroy            → world.DestroyEntity(id) (queued; safe inside ForEach)
+Destroy            → world.CommandBuffer.DestroyEntity(id) (queued; safe inside ForEach)
 Register system    → world.AddSystem(new MySystem()) in EcsCombatBootstrap
+Create Ground Weapon → Place GameObject with GroundWeaponAuthoring and WeaponDefinition in scene
+Define Weapon Data   → Create ScriptableObject WeaponDefinition
 ```
