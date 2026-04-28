@@ -3,69 +3,119 @@ using UnityEngine;
 
 namespace Chronocaust.Ecs.Components
 {
-    public sealed class PlayerTagComponent : IEcsComponent
-    {
-    }
+    public struct PlayerTagComponent : IEcsComponent { }
 
-    public sealed class TransformComponent : IEcsComponent
+    public struct TransformComponent : IEcsComponent
     {
         public Transform Transform;
     }
 
-    public sealed class InputStateComponent : IEcsComponent
+    public struct InputStateComponent : IEcsComponent
     {
         public bool FirePressed;
+        public bool InteractPressed;
         public Vector3 MouseWorldPosition;
         public Vector2 MoveInput;
     }
 
-    public sealed class AimComponent : IEcsComponent
+    public struct AimComponent : IEcsComponent
     {
-        public Vector2 Direction = Vector2.right;
+        public Vector2 Direction;
     }
 
-    public sealed class WeaponComponent : IEcsComponent
+    /// <summary>
+    /// Data stored on a ground pickup entity. Never placed directly on a character.
+    /// </summary>
+    public struct WeaponComponent : IEcsComponent
     {
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
-        public float FireRate = 6f;
-        public float ProjectileSpeed = 10f;
-        public float ProjectileLifetime = 2f;
-        public Vector2 MuzzleOffset = new Vector2(0.45f, 0f);
+        public float WeaponSpriteScale;
+        public float ProjectileSpriteScale;
+        public int WeaponSortingOrder;
+        public int ProjectileSortingOrder;
+        public float FireRate;
+        public float ProjectileSpeed;
+        public float ProjectileLifetime;
+        public Vector2 MuzzleOffset;
+        public float MovementSpeedMultiplier;
     }
 
-    public sealed class WeaponCooldownComponent : IEcsComponent
+    public struct GroundWeaponTagComponent : IEcsComponent { }
+
+    /// <summary>
+    /// The weapon currently held by this entity (player, enemy, etc.).
+    /// All fields are default/zero when no weapon is equipped.
+    /// </summary>
+    public struct EquippedWeaponComponent : IEcsComponent
     {
-        public float NextShotTime;
+        public Sprite WeaponSprite;
+        public Sprite ProjectileSprite;
+        public float WeaponSpriteScale;
+        public float ProjectileSpriteScale;
+        public int WeaponSortingOrder;
+        public int ProjectileSortingOrder;
+        public float FireRate;
+        public float ProjectileSpeed;
+        public float ProjectileLifetime;
+        public Vector2 MuzzleOffset;
+        /// <summary>Multiplied against MovementComponent.BaseSpeed each frame. Default 1 = no change.</summary>
+        public float MovementSpeedMultiplier;
+
+        public bool HasWeapon => WeaponSprite != null && FireRate > 0f;
+
+        public static EquippedWeaponComponent From(in WeaponComponent source) => new EquippedWeaponComponent
+        {
+            WeaponSprite = source.WeaponSprite,
+            ProjectileSprite = source.ProjectileSprite,
+            WeaponSpriteScale = source.WeaponSpriteScale > 0f ? source.WeaponSpriteScale : 1f,
+            ProjectileSpriteScale = source.ProjectileSpriteScale > 0f ? source.ProjectileSpriteScale : 1f,
+            WeaponSortingOrder = source.WeaponSortingOrder,
+            ProjectileSortingOrder = source.ProjectileSortingOrder,
+            FireRate = source.FireRate,
+            ProjectileSpeed = source.ProjectileSpeed,
+            ProjectileLifetime = source.ProjectileLifetime,
+            MuzzleOffset = source.MuzzleOffset,
+            MovementSpeedMultiplier = source.MovementSpeedMultiplier > 0f ? source.MovementSpeedMultiplier : 1f
+        };
     }
 
-    public sealed class WeaponViewComponent : IEcsComponent
+    /// <summary>Relative cooldown: decremented by deltaTime. No dependency on Time.time.</summary>
+    public struct WeaponCooldownComponent : IEcsComponent
+    {
+        public float CooldownRemaining;
+    }
+
+    public struct WeaponViewComponent : IEcsComponent
     {
         public Transform Transform;
         public SpriteRenderer Renderer;
     }
 
-    public sealed class ProjectileComponent : IEcsComponent
+    public struct ProjectileComponent : IEcsComponent
     {
         public Vector2 Direction;
         public float Speed;
         public float TimeLeft;
     }
 
-    public sealed class RigidbodyComponent : IEcsComponent
+    public struct RigidbodyComponent : IEcsComponent
     {
         public Rigidbody2D Rigidbody;
     }
 
-    public sealed class MovementComponent : IEcsComponent
+    public struct MovementComponent : IEcsComponent
     {
-        public float Speed = 1f;
-        public bool UseIsometricAxes = true;
-        public Vector2 IsometricRightAxis = new Vector2(1f, 0.5f);
-        public Vector2 IsometricUpAxis = new Vector2(-1f, 0.5f);
+        /// <summary>Base speed of the character, set in PlayerAuthoring. Never modified at runtime.</summary>
+        public float BaseSpeed;
+        public bool UseIsometricAxes;
+        public Vector2 IsometricRightAxis;
+        public Vector2 IsometricUpAxis;
+        /// <summary>Written by PlayerMovementSystem; read by CharacterAnimationSystem (rendering layer).</summary>
+        public Vector2 LastDirection;
     }
 
-    public sealed class CharacterRenderComponent : IEcsComponent
+    public struct CharacterRenderComponent : IEcsComponent
     {
         public IsometricCharacterRenderer Renderer;
     }
