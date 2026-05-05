@@ -46,22 +46,22 @@ public class IsometricPlayerMovementController : MonoBehaviour
         Vector2 targetVelocity = isoInput * maxSpeed;
 
         // --- Acceleration / Deceleration ---
-        if (isoInput.magnitude > 0.01f)
-        {
-            currentVelocity = Vector2.MoveTowards(
-                currentVelocity,
-                targetVelocity,
-                acceleration * Time.fixedDeltaTime
-            );
-        }
-        else
-        {
-            currentVelocity = Vector2.MoveTowards(
-                currentVelocity,
-                Vector2.zero,
-                deceleration * Time.fixedDeltaTime
-            );
-        }
+        // if (isoInput.magnitude > 0.01f)
+        // {
+        //     currentVelocity = Vector2.MoveTowards(
+        //         currentVelocity,
+        //         targetVelocity,
+        //         acceleration * Time.fixedDeltaTime
+        //     );
+        // }
+        // else
+        // {
+        //     currentVelocity = Vector2.MoveTowards(
+        //         currentVelocity,
+        //         Vector2.zero,
+        //         deceleration * Time.fixedDeltaTime
+        //     );
+        // }
 
         // --- Move ---
         rbody.MovePosition(rbody.position + currentVelocity * Time.fixedDeltaTime);

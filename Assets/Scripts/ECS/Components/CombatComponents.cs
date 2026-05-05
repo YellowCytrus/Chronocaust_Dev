@@ -1,5 +1,6 @@
 using Chronocaust.Ecs.Core;
 using UnityEngine;
+using Chronocaust.Ecs;
 
 namespace Chronocaust.Ecs.Components
 {
@@ -39,6 +40,22 @@ namespace Chronocaust.Ecs.Components
         public float ProjectileLifetime;
         public Vector2 MuzzleOffset;
         public float MovementSpeedMultiplier;
+        public Sprite[] ShootEffectFrames;
+        public float ShootEffectFrameDuration;
+        public float ShootEffectScale;
+        public Vector2 ShootEffectMuzzleOffset;
+        /// <summary>Determines which type-specific tag+data components WeaponPickupSystem adds on pickup.</summary>
+        public WeaponKind Kind;
+        // Type-specific data — only the fields matching Kind are used.
+        public int   PelletCount;
+        public float SpreadAngle;
+        public float BeamDuration;
+        public float BeamWidth;
+        public Color BeamColor;
+        public float MeleeRange;
+        public float MeleeArcAngle;
+        public float RecoilStrength;
+        public float RecoilDecayRate;
     }
 
     public struct GroundWeaponTagComponent : IEcsComponent { }
@@ -46,6 +63,8 @@ namespace Chronocaust.Ecs.Components
     /// <summary>
     /// The weapon currently held by this entity (player, enemy, etc.).
     /// All fields are default/zero when no weapon is equipped.
+    /// Type-specific behaviour is expressed by the presence of ShotgunTagComponent,
+    /// LaserTagComponent, or MeleeTagComponent — not by any field on this struct.
     /// </summary>
     public struct EquippedWeaponComponent : IEcsComponent
     {
@@ -61,6 +80,12 @@ namespace Chronocaust.Ecs.Components
         public Vector2 MuzzleOffset;
         /// <summary>Multiplied against MovementComponent.BaseSpeed each frame. Default 1 = no change.</summary>
         public float MovementSpeedMultiplier;
+        public Sprite[] ShootEffectFrames;
+        public float ShootEffectFrameDuration;
+        public float ShootEffectScale;
+        public Vector2 ShootEffectMuzzleOffset;
+        public float RecoilStrength;
+        public float RecoilDecayRate;
 
         public bool HasWeapon => WeaponSprite != null && FireRate > 0f;
 
@@ -76,7 +101,13 @@ namespace Chronocaust.Ecs.Components
             ProjectileSpeed = source.ProjectileSpeed,
             ProjectileLifetime = source.ProjectileLifetime,
             MuzzleOffset = source.MuzzleOffset,
-            MovementSpeedMultiplier = source.MovementSpeedMultiplier > 0f ? source.MovementSpeedMultiplier : 1f
+            MovementSpeedMultiplier = source.MovementSpeedMultiplier > 0f ? source.MovementSpeedMultiplier : 1f,
+            ShootEffectFrames = source.ShootEffectFrames,
+            ShootEffectFrameDuration = source.ShootEffectFrameDuration > 0f ? source.ShootEffectFrameDuration : 0.05f,
+            ShootEffectScale = source.ShootEffectScale > 0f ? source.ShootEffectScale : 1f,
+            ShootEffectMuzzleOffset = source.ShootEffectMuzzleOffset,
+            RecoilStrength = source.RecoilStrength,
+            RecoilDecayRate = source.RecoilDecayRate > 0f ? source.RecoilDecayRate : 8f,
         };
     }
 
@@ -118,5 +149,79 @@ namespace Chronocaust.Ecs.Components
     public struct CharacterRenderComponent : IEcsComponent
     {
         public IsometricCharacterRenderer Renderer;
+    }
+
+    /// <summary>
+    /// Accumulates recoil impulse on each shot. Decayed exponentially by RecoilDecaySystem.
+    /// Added to rigidbody velocity in PlayerMovementSystem.
+    /// </summary>
+    public struct RecoilComponent : IEcsComponent
+    {
+        /// <summary>Current recoil velocity in world space (units/s). Decays toward zero.</summary>
+        public Vector2 CurrentVelocity;
+    }
+
+    /// <summary>
+    /// Drives a short-lived muzzle-flash animation. Entity is destroyed when all frames have played.
+    /// </summary>
+    public struct MuzzleFlashComponent : IEcsComponent
+    {
+        public SpriteRenderer Renderer;
+        public Sprite[] Frames;
+        public float FrameDuration;
+        public float TimeInCurrentFrame;
+        public int CurrentFrame;
+    }
+
+    // -----------------------------------------------------------------------
+    // Weapon type tags — at most one is present on an armed entity at a time.
+    // Absence of all tags = default (pistol/auto) behaviour.
+    // WeaponShootSystem excludes all three; each specialised system includes its own.
+    // -----------------------------------------------------------------------
+
+    public struct ShotgunTagComponent : IEcsComponent { }
+    public struct LaserTagComponent   : IEcsComponent { }
+    public struct MeleeTagComponent   : IEcsComponent { }
+
+    /// <summary>Shotgun-specific parameters. Paired with ShotgunTagComponent.</summary>
+    public struct ShotgunDataComponent : IEcsComponent
+    {
+        public int   PelletCount;
+        public float SpreadAngle;
+    }
+
+    /// <summary>Laser-specific parameters. Paired with LaserTagComponent.</summary>
+    public struct LaserDataComponent : IEcsComponent
+    {
+        public float BeamDuration;
+        public float BeamWidth;
+        public Color BeamColor;
+    }
+
+    /// <summary>Melee-specific parameters. Paired with MeleeTagComponent.</summary>
+    public struct MeleeDataComponent : IEcsComponent
+    {
+        public float Range;
+        public float ArcAngle;
+    }
+
+    /// <summary>
+    /// Lives on the beam entity (not the player). Drives LineRenderer and lifetime.
+    /// BeamAnimationSystem reads Age, NoiseSeed, SegmentCount and writes per-frame positions.
+    /// </summary>
+    public struct BeamComponent : IEcsComponent
+    {
+        public LineRenderer Core;       // thin bright inner line
+        public LineRenderer Glow;       // wide transparent outer halo
+        public Vector2 Origin;
+        public Vector2 Direction;
+        public float   Length;
+        public float   TimeLeft;
+        public float   InitialDuration; // for life-ratio fade
+        public float   Width;
+        public Color   Color;
+        public float   Age;             // incremented by BeamAnimationSystem (rendering layer)
+        public float   NoiseSeed;       // unique per-beam for variation
+        public int     SegmentCount;    // number of arc points (set at spawn)
     }
 }

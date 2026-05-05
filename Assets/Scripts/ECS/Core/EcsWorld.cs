@@ -174,6 +174,31 @@ namespace Chronocaust.Ecs.Core
             return new EcsQuery<T1, T2, T3, T4, T5, T6>(_registry);
         }
 
+        public EcsQuery<T1, T2, T3, T4, T5, T6, T7> CreateQuery<T1, T2, T3, T4, T5, T6, T7>()
+            where T1 : struct, IEcsComponent
+            where T2 : struct, IEcsComponent
+            where T3 : struct, IEcsComponent
+            where T4 : struct, IEcsComponent
+            where T5 : struct, IEcsComponent
+            where T6 : struct, IEcsComponent
+            where T7 : struct, IEcsComponent
+        {
+            return new EcsQuery<T1, T2, T3, T4, T5, T6, T7>(_registry);
+        }
+
+        public EcsQuery<T1, T2, T3, T4, T5, T6, T7, T8> CreateQuery<T1, T2, T3, T4, T5, T6, T7, T8>()
+            where T1 : struct, IEcsComponent
+            where T2 : struct, IEcsComponent
+            where T3 : struct, IEcsComponent
+            where T4 : struct, IEcsComponent
+            where T5 : struct, IEcsComponent
+            where T6 : struct, IEcsComponent
+            where T7 : struct, IEcsComponent
+            where T8 : struct, IEcsComponent
+        {
+            return new EcsQuery<T1, T2, T3, T4, T5, T6, T7, T8>(_registry);
+        }
+
         // -----------------------------------------------------------------------
         // Internal: migration + flush
         // -----------------------------------------------------------------------

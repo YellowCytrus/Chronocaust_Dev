@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ae4b31038c606192b211e908523aa8c, type: 3}
+  m_Name: WD_Shotgun
+  m_EditorClassIdentifier: 
+  WeaponSprite: {fileID: 21300000, guid: e257542eec213b0feba15dabb8423a78, type: 3}
+  ProjectileSprite: {fileID: 21300000, guid: be8c334fb930ee5bb9716bb72a57b328, type: 3}
+  WeaponSpriteScale: 3.5
+  ProjectileSpriteScale: 5
+  WeaponSortingOrder: 100
+  ProjectileSortingOrder: 90
+  FireRate: 1
+  ProjectileSpeed: 20
+  ProjectileLifetime: 0.3
+  MuzzleOffset: {x: 0, y: 0}
+  MovementSpeedMultiplier: 0.7
+  RecoilStrength: 5
+  RecoilDecayRate: 8
+  ShootEffectFrames:
+  - {fileID: -7726624851970778080, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  - {fileID: -1794720364470185612, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  - {fileID: -1007026145666439968, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  - {fileID: 3917228457860857535, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  - {fileID: -9112659459708649132, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  - {fileID: 2986728476745911668, guid: 26e981db4fade4678a6f517a5e77174f, type: 3}
+  ShootEffectFrameDuration: 0.01
+  ShootEffectScale: 6
+  ShootEffectMuzzleOffset: {x: 1.9, y: -0.1}
+  Kind: 1
+  PelletCount: 4
+  SpreadAngle: 30
+  BeamDuration: 1
+  BeamWidth: 0.1
+  BeamColor: {r: 1, g: 0, b: 0, a: 1}
+  MeleeRange: 1.5
+  MeleeArcAngle: 90

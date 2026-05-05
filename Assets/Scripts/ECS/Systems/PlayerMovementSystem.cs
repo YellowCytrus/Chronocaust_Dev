@@ -11,19 +11,20 @@ namespace Chronocaust.Ecs.Systems
     public sealed class PlayerMovementSystem : IEcsFixedUpdateSystem
     {
         private EcsQuery<PlayerTagComponent, InputStateComponent, MovementComponent,
-            EquippedWeaponComponent, RigidbodyComponent> _query;
+            EquippedWeaponComponent, RigidbodyComponent, RecoilComponent> _query;
 
         public void FixedUpdate(EcsWorld world, float deltaTime)
         {
             _query ??= world.CreateQuery<PlayerTagComponent, InputStateComponent, MovementComponent,
-                EquippedWeaponComponent, RigidbodyComponent>();
+                EquippedWeaponComponent, RigidbodyComponent, RecoilComponent>();
 
             _query.ForEach((EntityId id,
                 ref PlayerTagComponent _,
                 ref InputStateComponent input,
                 ref MovementComponent movement,
                 ref EquippedWeaponComponent equipped,
-                ref RigidbodyComponent rb) =>
+                ref RigidbodyComponent rb,
+                ref RecoilComponent recoil) =>
             {
                 if (rb.Rigidbody == null) return;
 
@@ -32,7 +33,7 @@ namespace Chronocaust.Ecs.Systems
                     : input.MoveInput;
 
                 float multiplier = equipped.HasWeapon ? equipped.MovementSpeedMultiplier : 1f;
-                rb.Rigidbody.MovePosition(rb.Rigidbody.position + dir * movement.BaseSpeed * multiplier * deltaTime);
+                rb.Rigidbody.linearVelocity = dir * (movement.BaseSpeed * multiplier) + recoil.CurrentVelocity;
                 movement.LastDirection = dir;
             });
         }

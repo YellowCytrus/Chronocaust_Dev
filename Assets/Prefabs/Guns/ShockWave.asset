@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ae4b31038c606192b211e908523aa8c, type: 3}
+  m_Name: ShockWave
+  m_EditorClassIdentifier: 
+  WeaponSprite: {fileID: 21300000, guid: d9fdb87428204ae759a4dcdeaebdbab8, type: 3}
+  ProjectileSprite: {fileID: 0}
+  WeaponSpriteScale: 3
+  ProjectileSpriteScale: 1
+  WeaponSortingOrder: 100
+  ProjectileSortingOrder: 90
+  FireRate: 0.6
+  ProjectileSpeed: 10
+  ProjectileLifetime: 0.5
+  MuzzleOffset: {x: 0, y: 0}
+  MovementSpeedMultiplier: 1
+  RecoilStrength: 10
+  RecoilDecayRate: 8
+  ShootEffectFrames:
+  - {fileID: -181485876952098698, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  - {fileID: 8562773002694949093, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  - {fileID: 3814775613771941250, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  - {fileID: -3054962542360864615, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  - {fileID: 8128371770780104517, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  - {fileID: 7745240596084362602, guid: 1fcc07a4da4c0e693b842d2a4d534a7c, type: 3}
+  ShootEffectFrameDuration: 0.1
+  ShootEffectScale: 8
+  ShootEffectMuzzleOffset: {x: 2.4, y: -0.1}
+  Kind: 2
+  PelletCount: 8
+  SpreadAngle: 30
+  BeamDuration: 0.3
+  BeamWidth: 0.07
+  BeamColor: {r: 1, g: 0.051016767, b: 0, a: 1}
+  MeleeRange: 1.5
+  MeleeArcAngle: 90

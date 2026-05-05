@@ -62,6 +62,9 @@ namespace Chronocaust.Ecs.Core
         /// <summary>Returns true if this signature contains all bits of <paramref name="subset"/>.</summary>
         public bool HasAll(ComponentSignature subset) => (_bits & subset._bits) == subset._bits;
 
+        /// <summary>Returns true if this signature contains at least one bit of <paramref name="mask"/>.</summary>
+        public bool HasAny(ComponentSignature mask) => mask._bits != 0 && (_bits & mask._bits) != 0;
+
         public ulong RawBits => _bits;
 
         public bool Equals(ComponentSignature other) => _bits == other._bits;

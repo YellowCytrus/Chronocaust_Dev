@@ -23,6 +23,15 @@ namespace Chronocaust.Ecs.Systems
         private readonly List<GroundWeaponSnapshot> _groundWeapons = new List<GroundWeaponSnapshot>(64);
         private readonly Dictionary<int, List<int>> _cellToWeaponIndices = new Dictionary<int, List<int>>(64);
 
+        private struct PendingPickup
+        {
+            public EntityId        PlayerId;
+            public ComponentSignature OldSig;   // snapshot of the player's archetype at pickup time
+            public WeaponComponent NewWeapon;
+        }
+
+        private readonly List<PendingPickup> _pendingPickups = new List<PendingPickup>(4);
+
         public void Update(EcsWorld world, float deltaTime)
         {
             _groundQuery ??= world.CreateQuery<GroundWeaponTagComponent, TransformComponent, WeaponComponent>();
@@ -34,6 +43,8 @@ namespace Chronocaust.Ecs.Systems
             {
                 return;
             }
+
+            _pendingPickups.Clear();
 
             float pickupRadiusSq = PickupRadius * PickupRadius;
             _playerQuery.ForEach((EntityId playerId,
@@ -55,9 +66,80 @@ namespace Chronocaust.Ecs.Systems
                 }
 
                 GroundWeaponSnapshot picked = _groundWeapons[bestIndex];
+                _pendingPickups.Add(new PendingPickup
+                {
+                    PlayerId  = playerId,
+                    OldSig    = world.GetSignature(playerId),
+                    NewWeapon = picked.Weapon
+                });
                 equipped = EquippedWeaponComponent.From(picked.Weapon);
                 world.CommandBuffer.DestroyEntity(picked.Id);
             });
+
+            // Structural changes (add/remove tag components) must happen outside ForEach.
+            int count = _pendingPickups.Count;
+            for (int i = 0; i < count; i++)
+            {
+                PendingPickup p = _pendingPickups[i];
+                RemoveWeaponTypeTags(world, p.PlayerId, p.OldSig);
+                AddWeaponTypeTags(world, p.PlayerId, in p.NewWeapon);
+            }
+        }
+
+        /// <summary>
+        /// Removes whichever weapon-type tag+data components the entity currently carries.
+        /// Uses the archived signature snapshot so we don't branch on a data field.
+        /// </summary>
+        private static void RemoveWeaponTypeTags(EcsWorld world, EntityId id, ComponentSignature sig)
+        {
+            if (sig.Has<ShotgunTagComponent>())
+            {
+                world.CommandBuffer.RemoveComponent<ShotgunTagComponent>(id);
+                world.CommandBuffer.RemoveComponent<ShotgunDataComponent>(id);
+            }
+            else if (sig.Has<LaserTagComponent>())
+            {
+                world.CommandBuffer.RemoveComponent<LaserTagComponent>(id);
+                world.CommandBuffer.RemoveComponent<LaserDataComponent>(id);
+            }
+            else if (sig.Has<MeleeTagComponent>())
+            {
+                world.CommandBuffer.RemoveComponent<MeleeTagComponent>(id);
+                world.CommandBuffer.RemoveComponent<MeleeDataComponent>(id);
+            }
+        }
+
+        private static void AddWeaponTypeTags(EcsWorld world, EntityId id, in WeaponComponent w)
+        {
+            switch (w.Kind)
+            {
+                case Ecs.WeaponKind.Shotgun:
+                    world.CommandBuffer.AddComponent(id, new ShotgunTagComponent());
+                    world.CommandBuffer.AddComponent(id, new ShotgunDataComponent
+                    {
+                        PelletCount = w.PelletCount > 0 ? w.PelletCount : 8,
+                        SpreadAngle = w.SpreadAngle
+                    });
+                    break;
+                case Ecs.WeaponKind.Laser:
+                    world.CommandBuffer.AddComponent(id, new LaserTagComponent());
+                    world.CommandBuffer.AddComponent(id, new LaserDataComponent
+                    {
+                        BeamDuration = w.BeamDuration > 0f ? w.BeamDuration : 0.3f,
+                        BeamWidth    = w.BeamWidth > 0f ? w.BeamWidth : 0.1f,
+                        BeamColor    = w.BeamColor
+                    });
+                    break;
+                case Ecs.WeaponKind.Melee:
+                    world.CommandBuffer.AddComponent(id, new MeleeTagComponent());
+                    world.CommandBuffer.AddComponent(id, new MeleeDataComponent
+                    {
+                        Range    = w.MeleeRange > 0f ? w.MeleeRange : 1.5f,
+                        ArcAngle = w.MeleeArcAngle > 0f ? w.MeleeArcAngle : 90f
+                    });
+                    break;
+                // WeaponKind.Default: no tag, WeaponShootSystem handles via .Excluding<>
+            }
         }
 
         private void RebuildGroundWeaponGrid()
