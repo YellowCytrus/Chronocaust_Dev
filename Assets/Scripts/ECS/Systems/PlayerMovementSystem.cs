@@ -43,7 +43,13 @@ namespace Chronocaust.Ecs.Systems
             Vector2 r = right.sqrMagnitude > 0.0001f ? right.normalized : Vector2.right;
             Vector2 u = up.sqrMagnitude > 0.0001f ? up.normalized : Vector2.up;
             Vector2 iso = r * input.x + u * input.y;
-            if (iso.sqrMagnitude > 1f) iso.Normalize();
+            // Iso axes are non-orthogonal, so |r*x + u*y| depends on the angle between them
+            // (drops below 1 on diagonals). Rescale to preserve input magnitude => uniform speed.
+            float sqr = iso.sqrMagnitude;
+            if (sqr > 0.0001f)
+            {
+                iso *= input.magnitude / Mathf.Sqrt(sqr);
+            }
             return iso;
         }
     }

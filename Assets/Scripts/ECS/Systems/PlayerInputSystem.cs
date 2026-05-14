@@ -16,7 +16,7 @@ namespace Chronocaust.Ecs.Systems
             if (mainCamera == null) return;
 
             Vector2 rawMove = Vector2.ClampMagnitude(
-                new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical")), 1f);
+                new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")), 1f);
             bool fire = Input.GetMouseButton(0);
             bool interact = Input.GetKeyDown(KeyCode.E);
 
