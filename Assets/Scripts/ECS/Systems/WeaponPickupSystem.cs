@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Chronocaust.Ecs;
 using Chronocaust.Ecs.Components;
 using Chronocaust.Ecs.Core;
 using UnityEngine;
@@ -132,11 +133,7 @@ namespace Chronocaust.Ecs.Systems
                     break;
                 case Ecs.WeaponKind.Melee:
                     world.CommandBuffer.AddComponent(id, new MeleeTagComponent());
-                    world.CommandBuffer.AddComponent(id, new MeleeDataComponent
-                    {
-                        Range    = w.MeleeRange > 0f ? w.MeleeRange : 1.5f,
-                        ArcAngle = w.MeleeArcAngle > 0f ? w.MeleeArcAngle : 90f
-                    });
+                    world.CommandBuffer.AddComponent(id, MeleeDataSetup.FromWeaponComponent(in w));
                     break;
                 // WeaponKind.Default: no tag, WeaponShootSystem handles via .Excluding<>
             }

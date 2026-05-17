@@ -170,6 +170,9 @@ namespace Chronocaust.Ecs
                 equipped.ProjectileSpeed = startingWeapon.ProjectileSpeed;
                 equipped.ProjectileLifetime = startingWeapon.ProjectileLifetime;
                 equipped.MuzzleOffset = startingWeapon.MuzzleOffset;
+                equipped.WeaponVisualBaseRotationDeg = startingWeapon.WeaponVisualBaseRotationDeg;
+                equipped.WeaponVisualMirrorX = startingWeapon.WeaponVisualMirrorX;
+                equipped.WeaponVisualMirrorY = startingWeapon.WeaponVisualMirrorY;
                 equipped.MovementSpeedMultiplier = startingWeapon.MovementSpeedMultiplier;
                 equipped.ShootEffectFrames = startingWeapon.ShootEffectFrames;
                 equipped.ShootEffectFrameDuration = startingWeapon.ShootEffectFrameDuration > 0f
@@ -200,11 +203,7 @@ namespace Chronocaust.Ecs
                         };
                         break;
                     case WeaponKind.Melee:
-                        world.GetComponent<MeleeDataComponent>(player) = new MeleeDataComponent
-                        {
-                            Range    = startingWeapon.MeleeRange > 0f ? startingWeapon.MeleeRange : 1.5f,
-                            ArcAngle = startingWeapon.MeleeArcAngle > 0f ? startingWeapon.MeleeArcAngle : 90f
-                        };
+                        world.GetComponent<MeleeDataComponent>(player) = MeleeDataSetup.FromWeaponDefinition(startingWeapon);
                         break;
                 }
             }
@@ -272,6 +271,9 @@ namespace Chronocaust.Ecs
                 weapon.ProjectileSpeed = authoring.Definition.ProjectileSpeed;
                 weapon.ProjectileLifetime = authoring.Definition.ProjectileLifetime;
                 weapon.MuzzleOffset = authoring.Definition.MuzzleOffset;
+                weapon.WeaponVisualBaseRotationDeg = authoring.Definition.WeaponVisualBaseRotationDeg;
+                weapon.WeaponVisualMirrorX = authoring.Definition.WeaponVisualMirrorX;
+                weapon.WeaponVisualMirrorY = authoring.Definition.WeaponVisualMirrorY;
                 weapon.MovementSpeedMultiplier = authoring.Definition.MovementSpeedMultiplier;
                 weapon.ShootEffectFrames = authoring.Definition.ShootEffectFrames;
                 weapon.ShootEffectFrameDuration = authoring.Definition.ShootEffectFrameDuration > 0f
@@ -292,6 +294,31 @@ namespace Chronocaust.Ecs
                 weapon.BeamColor     = authoring.Definition.BeamColor;
                 weapon.MeleeRange    = authoring.Definition.MeleeRange > 0f ? authoring.Definition.MeleeRange : 1.5f;
                 weapon.MeleeArcAngle = authoring.Definition.MeleeArcAngle > 0f ? authoring.Definition.MeleeArcAngle : 90f;
+                weapon.MeleeMotionType = authoring.Definition.MeleeMotionType;
+                weapon.MeleeStartupDuration = authoring.Definition.MeleeStartupDuration;
+                weapon.MeleeActiveDuration = authoring.Definition.MeleeActiveDuration;
+                weapon.MeleeRecoveryDuration = authoring.Definition.MeleeRecoveryDuration;
+                weapon.MeleeHitWindowStartT = authoring.Definition.MeleeHitWindowStartT;
+                weapon.MeleeHitWindowEndT = authoring.Definition.MeleeHitWindowEndT;
+                weapon.MeleeAnticipationPull = authoring.Definition.MeleeAnticipationPull;
+                weapon.MeleeThrustDistance = authoring.Definition.MeleeThrustDistance;
+                weapon.MeleeThrustHitRadius = authoring.Definition.MeleeThrustHitRadius;
+                weapon.MeleeThrustVisualTiltMaxDeg = authoring.Definition.MeleeThrustVisualTiltMaxDeg;
+                weapon.MeleeSlamWindupDeg = authoring.Definition.MeleeSlamWindupDeg;
+                weapon.MeleeSlamDownDeg = authoring.Definition.MeleeSlamDownDeg;
+                weapon.MeleeSlamWindupOffsetY = authoring.Definition.MeleeSlamWindupOffsetY;
+                weapon.MeleeSlamStrikeDepth = authoring.Definition.MeleeSlamStrikeDepth;
+                weapon.MeleeSlamUseFixedAimDir = authoring.Definition.MeleeSlamUseFixedAimDir;
+                weapon.MeleeSlamPoseOffsetRight = authoring.Definition.MeleeSlamPoseOffsetRight;
+                weapon.MeleeSlamPoseRotRight = authoring.Definition.MeleeSlamPoseRotRight;
+                weapon.MeleeSlamPoseOffsetLeft = authoring.Definition.MeleeSlamPoseOffsetLeft;
+                weapon.MeleeSlamPoseRotLeft = authoring.Definition.MeleeSlamPoseRotLeft;
+                weapon.MeleeSlamShootEffectOffsetRight = authoring.Definition.MeleeSlamShootEffectOffsetRight;
+                weapon.MeleeSlamShootEffectOffsetLeft = authoring.Definition.MeleeSlamShootEffectOffsetLeft;
+                weapon.MeleeSlamHitSideOffset = authoring.Definition.MeleeSlamHitSideOffset;
+                weapon.MeleeSpinTurns = authoring.Definition.MeleeSpinTurns;
+                weapon.MeleeViewSuppressFlipY = authoring.Definition.MeleeViewSuppressFlipY;
+                weapon.MeleeIdleVisualAimSmoothHz = authoring.Definition.MeleeIdleVisualAimSmoothHz;
             }
         }
 

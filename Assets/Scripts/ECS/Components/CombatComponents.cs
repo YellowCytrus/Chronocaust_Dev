@@ -39,6 +39,9 @@ namespace Chronocaust.Ecs.Components
         public float ProjectileSpeed;
         public float ProjectileLifetime;
         public Vector2 MuzzleOffset;
+        public float WeaponVisualBaseRotationDeg;
+        public bool WeaponVisualMirrorX;
+        public bool WeaponVisualMirrorY;
         public float MovementSpeedMultiplier;
         public Sprite[] ShootEffectFrames;
         public float ShootEffectFrameDuration;
@@ -54,6 +57,34 @@ namespace Chronocaust.Ecs.Components
         public Color BeamColor;
         public float MeleeRange;
         public float MeleeArcAngle;
+        public MeleeMotionType MeleeMotionType;
+        public float MeleeStartupDuration;
+        public float MeleeActiveDuration;
+        public float MeleeRecoveryDuration;
+        public float MeleeHitWindowStartT;
+        public float MeleeHitWindowEndT;
+        public float MeleeAnticipationPull;
+        public float MeleeThrustDistance;
+        public float MeleeThrustHitRadius;
+        public float MeleeThrustVisualTiltMaxDeg;
+        public float MeleeSlamWindupDeg;
+        public float MeleeSlamDownDeg;
+        public float MeleeSlamWindupOffsetY;
+        public float MeleeSlamStrikeDepth;
+        public bool MeleeSlamUseFixedAimDir;
+        public Vector2 MeleeSlamPoseOffsetRight;
+        public float MeleeSlamPoseRotRight;
+        public Vector2 MeleeSlamPoseOffsetLeft;
+        public float MeleeSlamPoseRotLeft;
+        public Vector2 MeleeSlamShootEffectOffsetRight;
+        public Vector2 MeleeSlamShootEffectOffsetLeft;
+        /// <summary>Fixed slam: hit center lateral offset from player (world X, meters).</summary>
+        public float MeleeSlamHitSideOffset;
+        public float MeleeSpinTurns;
+        /// <summary>If true: no SpriteRenderer.flipY — left/right via Z rotation only (aim-space semantics).</summary>
+        public bool MeleeViewSuppressFlipY;
+        /// <summary>Idle melee visual aim smoothing (1/s) on pickup; 0 = instant.</summary>
+        public float MeleeIdleVisualAimSmoothHz;
         public float RecoilStrength;
         public float RecoilDecayRate;
     }
@@ -78,6 +109,10 @@ namespace Chronocaust.Ecs.Components
         public float ProjectileSpeed;
         public float ProjectileLifetime;
         public Vector2 MuzzleOffset;
+        /// <summary>Added to aim angle + melee pose in WeaponViewSystem (sprite art offset in degrees).</summary>
+        public float WeaponVisualBaseRotationDeg;
+        public bool WeaponVisualMirrorX;
+        public bool WeaponVisualMirrorY;
         /// <summary>Multiplied against MovementComponent.BaseSpeed each frame. Default 1 = no change.</summary>
         public float MovementSpeedMultiplier;
         public Sprite[] ShootEffectFrames;
@@ -101,6 +136,9 @@ namespace Chronocaust.Ecs.Components
             ProjectileSpeed = source.ProjectileSpeed,
             ProjectileLifetime = source.ProjectileLifetime,
             MuzzleOffset = source.MuzzleOffset,
+            WeaponVisualBaseRotationDeg = source.WeaponVisualBaseRotationDeg,
+            WeaponVisualMirrorX = source.WeaponVisualMirrorX,
+            WeaponVisualMirrorY = source.WeaponVisualMirrorY,
             MovementSpeedMultiplier = source.MovementSpeedMultiplier > 0f ? source.MovementSpeedMultiplier : 1f,
             ShootEffectFrames = source.ShootEffectFrames,
             ShootEffectFrameDuration = source.ShootEffectFrameDuration > 0f ? source.ShootEffectFrameDuration : 0.05f,
@@ -198,11 +236,71 @@ namespace Chronocaust.Ecs.Components
         public Color BeamColor;
     }
 
-    /// <summary>Melee-specific parameters. Paired with MeleeTagComponent.</summary>
+    /// <summary>Melee-specific parameters + per-attack runtime. Paired with MeleeTagComponent.</summary>
     public struct MeleeDataComponent : IEcsComponent
     {
+        public MeleeMotionType MotionType;
         public float Range;
         public float ArcAngle;
+
+        public float StartupDuration;
+        public float ActiveDuration;
+        public float RecoveryDuration;
+
+        /// <summary>Hit checks use normalized time over the whole swing [0,1].</summary>
+        public float HitWindowStartT;
+        public float HitWindowEndT;
+
+        public float AnticipationPull;
+        public float ThrustDistance;
+        public float ThrustHitRadius;
+        /// <summary>Extra Z rotation on weapon sprite during thrust only; degrees, visual only.</summary>
+        public float ThrustVisualTiltMaxDeg;
+
+        public float SlamWindupDeg;
+        public float SlamDownDeg;
+        public float SlamWindupOffsetY;
+        public float SlamStrikeDepth;
+        public bool SlamUseFixedAimDir;
+        public Vector2 SlamPoseOffsetRight;
+        public float SlamPoseRotRight;
+        public Vector2 SlamPoseOffsetLeft;
+        public float SlamPoseRotLeft;
+        public Vector2 SlamShootEffectOffsetRight;
+        public Vector2 SlamShootEffectOffsetLeft;
+        public float SlamHitSideOffset;
+
+        public float SpinTurns;
+
+        public bool MeleeViewSuppressFlipY;
+        /// <summary>Idle visual aim smoothing rate (1/s), from weapon authoring. 0 = instant follow.</summary>
+        public float MeleeIdleVisualAimSmoothHz;
+        /// <summary>WeaponViewSystem: smoothed aim angle (deg) for idle; chases live Aim every frame.</summary>
+        public float IdleVisualSmoothedAimDeg;
+
+        public bool AttackActive;
+        public MeleeAttackPhase AttackPhase;
+        public float AttackElapsed;
+        public Vector2 AttackAimDir;
+        /// <summary>Side-based attacks (fixed slam): cursor left of player at attack start.</summary>
+        public bool AttackFacingLeft;
+        public byte HitCount;
+        public int HitId0;
+        public int HitId1;
+        public int HitId2;
+        public int HitId3;
+        public int HitId4;
+        public int HitId5;
+        public int HitId6;
+        public int HitId7;
+        public int HitId8;
+        public int HitId9;
+        public int HitId10;
+        public int HitId11;
+        public int HitId12;
+        public int HitId13;
+        public int HitId14;
+        public int HitId15;
     }
 
     /// <summary>
