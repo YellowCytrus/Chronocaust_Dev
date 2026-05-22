@@ -150,7 +150,7 @@ Instead of configuring a large list in `EcsCombatBootstrap`, each ground weapon 
 1. **Create WeaponDefinition Assets:**
    - In your Project window, right-click -> `Create -> Chronocaust -> ECS -> Weapon Definition`.
    - Name it (e.g., `WD_Pistol`, `WD_Shotgun`).
-   - Fill in its `Visuals` (sprites, scales, sorting order), `Stats` (fire rate, speed, lifetime, muzzle offset), and `Character Modifiers` (movement speed multiplier).
+   - Fill in **Visuals** (sprites, scales, sorting, `WeaponVisualBaseRotationDeg`, mirror flags, **`MuzzleOffset`** — muzzle for ranged and **weapon mount** in aim space for melee), then **Stats** (fire rate, projectile speed/lifetime), **Character Modifiers**, and weapon-type sections (**Shotgun** / **Laser** / **Melee** as needed). Melee pivot on the art is configured in the **Sprite Editor** (sprite pivot), not via a separate runtime grip field.
 
 2. **Place a Ground Weapon in the Scene:**
    - Create a new `GameObject` in your scene (e.g., `GroundWeapon_Pistol`).

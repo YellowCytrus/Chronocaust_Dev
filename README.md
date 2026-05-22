@@ -66,9 +66,10 @@ All components are `struct`. Fields with Unity object references (Transform, Rig
 | `InputStateComponent` | Raw input snapshot (mouse position, fire button, WASD) |
 | `AimComponent` | Normalised aim direction (world space) |
 | `MovementComponent` | Speed, iso axes, `LastDirection` (written by movement, read by animation) |
-| `WeaponComponent` | Weapon config (sprites, fire rate, projectile stats, muzzle offset) |
-| `WeaponCooldownComponent` | `CooldownRemaining` — relative timer, no `Time.time` |
-| `WeaponViewComponent` | Transform + SpriteRenderer of the visual weapon child object |
+| `WeaponComponent` | Конфиг **лежащего** оружия (спрайты, fire rate, `WeaponKind`, melee/shotgun/laser поля, `MuzzleOffset`, зеркала) |
+| `EquippedWeaponComponent` | Данные **экипированного** оружия у сущности (копия с подбора / из `WeaponDefinition` при старте) |
+| `WeaponCooldownComponent` | `CooldownRemaining` — относительный таймер, без `Time.time` |
+| `WeaponViewComponent` | Ссылки на `Transform` + `SpriteRenderer` объекта **WeaponView** (дочерний к игроку, один GO со спрайтом) |
 | `RigidbodyComponent` | Unity `Rigidbody2D` reference |
 | `CharacterRenderComponent` | `IsometricCharacterRenderer` reference (View layer) |
 | `ProjectileComponent` | Direction, speed, `TimeLeft` |
@@ -83,10 +84,12 @@ All components are `struct`. Fields with Unity object references (Transform, Rig
 |---|---|---|---|
 | `PlayerInputSystem` | `PlayerTag`, `TransformComponent` | `InputStateComponent` | Samples `Input.*` once per frame |
 | `PlayerAimSystem` | `PlayerTag`, `TransformComponent`, `InputStateComponent` | `AimComponent` | Normalised mouse direction |
-| `WeaponShootSystem` | `PlayerTag`, `Transform`, `Input`, `Aim`, `Weapon`, `WeaponCooldown` | `WeaponCooldown.CooldownRemaining`; queues projectile spawn | Pre-allocated list, no per-frame alloc |
+| `WeaponShootSystem` | `PlayerTag`, `Transform`, `Input`, `Aim`, **`EquippedWeapon`**, `WeaponCooldown` (без shotgun/laser/melee тегов) | `WeaponCooldown`; очередь снаряда | Список с предвыделением |
 | `ProjectileLifetimeSystem` | `ProjectileComponent`, `TransformComponent` | `ProjectileComponent.TimeLeft`; queues `DestroyEntity` | |
-| `WeaponViewSystem` | `TransformComponent`, `AimComponent`, `WeaponComponent`, `WeaponViewComponent` | Unity transforms + sprite | Rendering layer |
-| `CharacterAnimationSystem` | `MovementComponent.LastDirection`, `CharacterRenderComponent` | Animator state | Rendering layer; reads data written by FixedUpdate |
+| `WeaponViewSystem` | `Aim`, **`EquippedWeapon`**, `WeaponView`; для melee + `MeleeTag`, `MeleeData` | Позиция/поворот/flip визуала оружия (`MuzzleOffset` + melee pose; зеркала из Definition) | Рендер-слой; пивот арта — в Sprite Editor |
+| `CharacterAnimationSystem` | `MovementComponent.LastDirection`, `CharacterRenderComponent` | Animator state | Рендер-слой; читает данные из FixedUpdate |
+
+Полный порядок систем и теги оружия: **`docs/flows/runtime-loop.md`**, **`docs/ARCHITECTURE_AUDIT.md`**.
 
 ### FixedUpdate systems (called at fixed physics rate)
 
@@ -99,21 +102,9 @@ All components are `struct`. Fields with Unity object references (Transform, Rig
 
 ## System execution order
 
-```
-Update()
-  1. PlayerInputSystem
-  2. PlayerAimSystem
-  3. WeaponShootSystem
-  4. ProjectileLifetimeSystem
-  5. WeaponViewSystem          ← rendering
-  6. CharacterAnimationSystem  ← rendering
-  [CommandBuffer.Playback + DestroyQueue flush]
+Актуальный список: **`docs/flows/runtime-loop.md`** (источник в коде: `EcsCombatBootstrap.RegisterSystems`).
 
-FixedUpdate()
-  1. PlayerMovementSystem
-  2. ProjectileMovementSystem
-  [CommandBuffer.Playback + DestroyQueue flush]
-```
+Кратко, **Update**: ввод → прицел → подбор → стрельба (default / shotgun / laser / melee) → снаряды/лучи → отдача → **WeaponViewSystem** → вспышка/луч/анимация персонажа. **FixedUpdate**: отдача decay → движение игрока → движение снарядов.
 
 ---
 

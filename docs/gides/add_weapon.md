@@ -1,51 +1,78 @@
-гайд с нуля под текущую архитектуру (с GroundWeaponAuthoring + WeaponDefinition).
+# Добавление оружия (модульный prefab + ECS)
 
-1) Создай ассет оружия (шаблон)
-В Project: Create -> Chronocaust -> ECS -> Weapon Definition
-Назови, например, WD_Pistol
-Заполни поля:
-WeaponSprite — спрайт оружия в руках
-ProjectileSprite — спрайт пули/снаряда
-FireRate
-ProjectileSpeed
-ProjectileLifetime
-MuzzleOffset
-Это шаблон данных оружия, без позиции в мире.
+Оружие собирается как **конструктор**: на GameObject лежат MonoBehaviour-модули (`IWeaponModuleAuthoring`), при Play `WeaponEntityBaker` создаёт ECS-сущность с нужными компонентами.
 
-2) Подготовь сцену и bootstrap
-На сцене должен быть объект с EcsCombatBootstrap
-В EcsCombatBootstrap должен быть назначен Player Transform
-Игрок должен иметь Rigidbody2D (иначе bootstrap ругнется)
-3) Создай лежащее оружие на сцене
-Создай GameObject, например GroundWeapon_Pistol
-Поставь его в нужную позицию на карте
-Добавь SpriteRenderer (чтобы видеть предмет на земле)
-Добавь компонент GroundWeaponAuthoring
-В GroundWeaponAuthoring -> Definition укажи WD_Pistol
-Готово: это авторинг-объект дропа.
+См. также: [Компоненты ECS](../models/ecs-components.md), [Поток боя игрока](../flows/player-combat-flow.md).
 
-4) Что произойдет в Play Mode
-При старте EcsCombatBootstrap:
+---
 
-найдет все GroundWeaponAuthoring на сцене
-создаст для каждого ECS-сущность с:
-GroundWeaponTagComponent
-TransformComponent
-WeaponComponent (заполненный из WeaponDefinition)
-5) Подбор и использование
-Подойди к предмету
-Нажми E
-WeaponPickupSystem:
-найдет ближайшее оружие в радиусе
-скопирует его WeaponComponent игроку
-удалит ground-entity через CommandBuffer.DestroyEntity(...)
-Объект на земле исчезнет (через destroy callback)
-Игрок сразу начнет:
-отображать новое оружие
-стрелять его параметрами по ЛКМ
-6) Быстрый чек-лист, если не работает
-На предмете есть GroundWeaponAuthoring
-В Definition назначен WeaponDefinition
-В сцене есть EcsCombatBootstrap и корректный Player Transform
-Подходишь достаточно близко (радиус подбора в WeaponPickupSystem)
-Нажимаешь именно E в Play режиме
+## 1) Модули authoring
+
+Папка: `Assets/Scripts/ECS/Authoring/Weapon/`
+
+| Модуль | ECS-компоненты |
+|--------|----------------|
+| `WeaponVisualAuthoring` | `WeaponSpriteComponent`, `WeaponAttachComponent` |
+| `ProjectileFireAuthoring` | `ProjectileVisualComponent`, `ProjectileBallisticsComponent`, `FireRateComponent` |
+| `RecoilAuthoring` | `RecoilOnFireComponent` |
+| `MuzzleFlashAuthoring` | `MuzzleFlashConfigComponent` |
+| `MovementSpeedModifierAuthoring` | `MovementSpeedModifierComponent` |
+| `ShotgunSpreadAuthoring` | `ShotgunSpreadComponent` |
+| `LaserBeamAuthoring` | `LaserBeamConfigComponent` |
+| `FireRateAuthoring` | `FireRateComponent` (для лазера без снаряда) |
+| `MeleeAttackAuthoring` | `MeleeAttackConfigComponent`, `FireRateComponent` |
+| `DamageAuthoring` | `DamageComponent` (заготовка) |
+| `AmmoMagazineAuthoring` | `AmmoMagazineComponent` (заготовка) |
+
+**Пресеты:**
+
+- **Пистолет:** Visual + ProjectileFire + Recoil + MuzzleFlash  
+- **Дробовик:** Visual + ProjectileFire + ShotgunSpread + Recoil + MuzzleFlash  
+- **Лазер:** Visual + LaserBeam + FireRate + MuzzleFlash  
+- **Melee:** Visual + MeleeAttack (+ MovementSpeedModifier / MuzzleFlash по желанию)
+
+Не вешайте `ProjectileFireAuthoring` и `MeleeAttackAuthoring` на один объект — `GroundWeaponAuthoring` предупредит в OnValidate.
+
+---
+
+## 2) Лежащее оружие на сцене
+
+1. GameObject + `SpriteRenderer` (видимость на земле)  
+2. `GroundWeaponAuthoring`  
+3. Нужные модули из таблицы выше  
+
+При Play `EcsCombatBootstrap` вызывает `WeaponEntityBaker.BakeGroundWeapon`.
+
+**Legacy:** поле `definition` (`WeaponDefinition` SO) всё ещё работает через `WeaponDefinitionBaker`, пока сцена не мигрирована. В меню: **Chronocaust → ECS → Migrate Selected Ground Weapons**.
+
+---
+
+## 3) Стартовое оружие игрока
+
+На `EcsCombatBootstrap` укажите **Starting Weapon Source** — GameObject (prefab или сцена) с теми же модулями.
+
+---
+
+## 4) Подбор
+
+`WeaponPickupSystem` копирует модульные компоненты через `WeaponEquipTransfer` (снять старые модули → добавить новые). Признак экипировки: `WeaponSpriteComponent` + `FireRateComponent`.
+
+---
+
+## 5) Системы
+
+| Capability | Система |
+|------------|---------|
+| Projectile / shotgun / laser | `WeaponFireCoordinatorSystem` |
+| Melee | `MeleeAttackSystem` |
+| Визуал | `WeaponViewSystem` |
+| Отдача | `RecoilApplySystem` + `RecoilDecaySystem` |
+
+---
+
+## Чеклист
+
+- [ ] На ground-объекте есть `GroundWeaponAuthoring` и хотя бы Visual + режим (Projectile / Melee / Laser / Shotgun)  
+- [ ] На сцене есть `EcsCombatBootstrap` с Player Transform  
+- [ ] У игрока `Rigidbody2D`  
+- [ ] Play: подбор **E**, стрельба **ЛКМ**

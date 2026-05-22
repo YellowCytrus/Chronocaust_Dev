@@ -33,14 +33,11 @@ flowchart TD
 ```
 
 ## Текущий порядок систем
-- Цепочка Update:
-  - `PlayerInputSystem`
-  - `PlayerAimSystem`
-  - `WeaponViewSystem`
-  - `WeaponShootSystem`
-  - `ProjectileLifetimeSystem`
-- Цепочка Fixed:
-  - `PlayerMovementSystem`
-  - `ProjectileMovementSystem`
+Источник истины: `EcsCombatBootstrap.RegisterSystems` (см. также [ARCHITECTURE_AUDIT.md](../ARCHITECTURE_AUDIT.md)).
+
+- Цепочка **Update** (симуляция, затем визуал):
+  - `PlayerInputSystem` → `PlayerAimSystem` → `WeaponPickupSystem` → `WeaponShootSystem` → `ShotgunShootSystem` → `LaserBeamSystem` → `MeleeAttackSystem` → `ProjectileLifetimeSystem` → `BeamLifetimeSystem` → `RecoilApplySystem` → `WeaponViewSystem` → `MuzzleFlashAnimationSystem` → `BeamAnimationSystem` → `CharacterAnimationSystem`
+- Цепочка **FixedUpdate**:
+  - `RecoilDecaySystem` → `PlayerMovementSystem` → `ProjectileMovementSystem`
 
 Детали зависимостей от порядка см. в [Обработка ошибок](../errors/error-handling.md) и [Стратегия тестирования](../testing/testing-strategy.md).
