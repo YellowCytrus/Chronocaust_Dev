@@ -18,7 +18,12 @@ namespace Chronocaust.Ecs
         [Tooltip("Leave empty if the player starts unarmed.")]
         [SerializeField] private WeaponDefinition startingWeapon;
 
+        [Header("Combat")]
+        [Tooltip("Layers that receive projectile and melee damage (e.g. Enemy).")]
+        [SerializeField] private LayerMask damageableLayers = ~0;
+
         private EcsWorld _world;
+        private PhysicsEntityRegistry _physicsRegistry;
 
         private void Awake()
         {
@@ -30,11 +35,12 @@ namespace Chronocaust.Ecs
             }
 
             _world = new EcsWorld();
-            BindDestroyCallback(_world);
-            RegisterSystems(_world);
+            _physicsRegistry = new PhysicsEntityRegistry();
+            BindDestroyCallback(_world, _physicsRegistry);
+            RegisterSystems(_world, _physicsRegistry);
             CreatePlayerEntity(_world);
             CreateGroundWeapons(_world);
-            CreateEnemyEntities(_world);
+            CreateEnemyEntities(_world, _physicsRegistry);
             DisableLegacyMovementController();
         }
 
@@ -45,10 +51,12 @@ namespace Chronocaust.Ecs
         // Destroy callback — keeps EcsWorld Core free of Unity types
         // -----------------------------------------------------------------------
 
-        private static void BindDestroyCallback(EcsWorld world)
+        private static void BindDestroyCallback(EcsWorld world, PhysicsEntityRegistry registry)
         {
             world.OnEntityDestroyed += id =>
             {
+                registry.UnregisterEntity(id);
+
                 if (world.IsAlive(id) == false) return;
                 // At the moment of the callback the entity is still alive (data not yet removed).
                 // We read TransformComponent and destroy the linked GameObject.
@@ -64,7 +72,7 @@ namespace Chronocaust.Ecs
         // Systems — declared in execution order
         // -----------------------------------------------------------------------
 
-        private static void RegisterSystems(EcsWorld world)
+        private void RegisterSystems(EcsWorld world, PhysicsEntityRegistry registry)
         {
             // Simulation — Update
             world.AddSystem(new PlayerInputSystem());
@@ -72,8 +80,8 @@ namespace Chronocaust.Ecs
             world.AddSystem(new WeaponPickupSystem());
             world.AddSystem(new WeaponShootSystem());
             world.AddSystem(new ShotgunShootSystem());
-            world.AddSystem(new LaserBeamSystem());
-            world.AddSystem(new MeleeAttackSystem());
+            world.AddSystem(new LaserBeamSystem(registry));
+            world.AddSystem(new MeleeAttackSystem(registry));
             world.AddSystem(new EnemyAttackSystem());
             world.AddSystem(new EnemyDeathSystem());
             world.AddSystem(new ProjectileLifetimeSystem());
@@ -90,6 +98,7 @@ namespace Chronocaust.Ecs
             world.AddSystem(new RecoilDecaySystem());
             world.AddSystem(new PlayerMovementSystem());
             world.AddSystem(new EnemyChaseSystem());
+            world.AddSystem(new ProjectileHitSystem(registry, damageableLayers));
             world.AddSystem(new ProjectileMovementSystem());
         }
 
@@ -335,7 +344,7 @@ namespace Chronocaust.Ecs
             }
         }
 
-        private void CreateEnemyEntities(EcsWorld world)
+        private static void CreateEnemyEntities(EcsWorld world, PhysicsEntityRegistry registry)
         {
             EnemyAuthoring[] authorings = FindObjectsByType<EnemyAuthoring>(FindObjectsSortMode.None);
             if (authorings == null || authorings.Length == 0)
@@ -432,6 +441,8 @@ namespace Chronocaust.Ecs
                 {
                     world.GetComponent<CharacterRenderComponent>(enemy).Renderer = isoRenderer;
                 }
+
+                registry.RegisterDamageableEntity(enemy, authoring.gameObject);
             }
         }
 

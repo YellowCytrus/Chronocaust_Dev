@@ -10,6 +10,7 @@
 2. **EnemyAttackSystem** — в радиусе `Attack Range` наносит урон игроку; урон и кулдаун берутся из экипированного оружия (`WeaponDefinition.Damage`, `FireRate`).
 3. **WeaponViewSystem** — отображает оружие в руках (если задано `Starting Weapon`).
 4. **EnemyDeathSystem** — удаляет врага при `Health <= 0`.
+5. Урон от игрока (огнестрел, ближний бой) снижает `Health` врага, если настроены коллайдер и слой (см. ниже).
 
 ---
 
@@ -45,7 +46,9 @@
 3. Добавь **Rigidbody2D** (обязательно — без него преследование не работает).
    - Рекомендуется: `Body Type = Dynamic`, `Gravity Scale = 0` (как у игрока).
 4. Добавь **SpriteRenderer** со спрайтом врага (например из `Assets/Textures/Enemies/...`).
-5. Добавь компонент **Enemy Authoring**.
+5. Добавь **Collider2D** (например `CapsuleCollider2D` или `BoxCollider2D` по размеру спрайта) — без него попадания снарядов и ближнего боя не регистрируются.
+6. Поставь объект на слой из **Damageable Layers** у `EcsCombatBootstrap` (например слой `Enemy`, если он есть в проекте).
+7. Добавь компонент **Enemy Authoring**.
 
 Опционально: дочерний объект с **IsometricCharacterRenderer** и аниматором — тогда враг будет проигрывать направления бега, как игрок.
 
@@ -87,6 +90,9 @@
 | Нет спрайта оружия | Заполнен `Starting Weapon` и `Weapon Sprite` в ассете |
 | Враг не появляется в ECS | На сцене есть `EcsCombatBootstrap`, в консоли нет ошибок при старте |
 | Игрок не получает урон | На игроке есть `PlayerAuthoring`; bootstrap создаёт `HealthComponent` |
+| Игрок не наносит урон врагу | Есть `Collider2D` на враге (или дочернем объекте); слой врага входит в **Damageable Layers** на bootstrap |
+| Снаряд проходит сквозь врага | Коллайдер не trigger-only без тела, или слой не в маске; проверь **Damageable Layers** |
+| Лазер не наносит урон | Тот же `Collider2D` и слой; урон по первому `Raycast` — если луч упирается в стену раньше врага, до врага урон не дойдёт |
 
 ---
 
@@ -97,5 +103,9 @@
 - `Assets/Scripts/ECS/Systems/EnemyChaseSystem.cs`
 - `Assets/Scripts/ECS/Systems/EnemyAttackSystem.cs`
 - `Assets/Scripts/ECS/Systems/EnemyDeathSystem.cs`
+- `Assets/Scripts/ECS/PhysicsEntityRegistry.cs` — коллайдер → ECS-сущность
+- `Assets/Scripts/ECS/CombatDamage.cs`, `CombatTargetRules.cs`
+- `Assets/Scripts/ECS/Systems/ProjectileHitSystem.cs`
+- `Assets/Scripts/ECS/Systems/LaserBeamSystem.cs` — урон по лучу при попадании в зарегистрированный коллайдер
 
 Подробнее про ECS в целом: [README.md](README.md), [docs/HOWTO_NEW_ENTITY.md](docs/HOWTO_NEW_ENTITY.md).

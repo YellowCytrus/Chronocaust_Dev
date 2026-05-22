@@ -169,6 +169,9 @@ namespace Chronocaust.Ecs.Components
         public Vector2 Direction;
         public float Speed;
         public float TimeLeft;
+        public float Damage;
+        public EntityId Instigator;
+        public bool IsActive;
     }
 
     public struct RigidbodyComponent : IEcsComponent

@@ -198,6 +198,9 @@ namespace Chronocaust.Ecs.Core
             proj.Direction = p.Direction;
             proj.Speed = p.Speed;
             proj.TimeLeft = p.Lifetime;
+            proj.Damage = p.Damage;
+            proj.Instigator = p.Instigator;
+            proj.IsActive = true;
         }
 
         private static void SpawnMuzzleFlashImmediate(EcsWorld world, MuzzleFlashSpawnPayload p)
@@ -318,6 +321,8 @@ namespace Chronocaust.Ecs.Core
         public Vector2 Direction;
         public float Speed;
         public float Lifetime;
+        public float Damage;
+        public EntityId Instigator;
         public Sprite ProjectileSprite;
         public Sprite FallbackSprite;
         public float ProjectileScale;
