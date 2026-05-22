@@ -88,6 +88,7 @@ namespace Chronocaust.Ecs.Components
     {
         public Transform Root;
         public UnityEngine.UI.Text Label;
+        public CanvasGroup Group;
     }
 
     public struct TransformComponent : IEcsComponent

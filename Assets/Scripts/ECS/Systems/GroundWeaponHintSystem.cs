@@ -6,11 +6,12 @@ using WeaponKind = Chronocaust.Ecs.WeaponKind;
 namespace Chronocaust.Ecs.Systems
 {
     /// <summary>
-    /// Shows floating world-space prompts above ground weapons when the player is nearby.
+    /// Shows floating world-space text above ground weapons when the player is nearby.
     /// </summary>
     public sealed class GroundWeaponHintSystem : IEcsUpdateSystem
     {
         private const float HintRadius = WeaponInventoryUtility.PickupRadius;
+        private const float FadeSpeed = 5f;
 
         private EcsQuery<GroundWeaponTagComponent, TransformComponent, WeaponComponent,
             GroundWeaponHintViewComponent> _groundQuery;
@@ -37,11 +38,6 @@ namespace Chronocaust.Ecs.Systems
                 }
             });
 
-            if (!_hasPlayer)
-            {
-                return;
-            }
-
             float radiusSq = HintRadius * HintRadius;
             Camera cam = Camera.main;
 
@@ -56,23 +52,45 @@ namespace Chronocaust.Ecs.Systems
                     return;
                 }
 
-                Vector2 pos = transform.Transform.position;
-                bool inRange = (pos - _playerPos).sqrMagnitude <= radiusSq;
-                hint.Root.gameObject.SetActive(inRange);
+                CanvasGroup group = hint.Group;
+                if (group == null && hint.Root != null)
+                {
+                    group = hint.Root.GetComponent<CanvasGroup>();
+                }
 
-                if (!inRange)
+                if (group == null)
                 {
                     return;
                 }
 
-                string name = ResolveWeaponLabel(in weapon);
-                hint.Label.text = $"[E]  {name}";
+                Vector2 pos = transform.Transform.position;
+                bool inRange = _hasPlayer && (pos - _playerPos).sqrMagnitude <= radiusSq;
+                float targetAlpha = inRange ? 1f : 0f;
 
-                if (cam != null)
+                if (!hint.Root.gameObject.activeSelf && targetAlpha > 0f)
+                {
+                    hint.Root.gameObject.SetActive(true);
+                }
+
+                float alpha = Mathf.MoveTowards(group.alpha, targetAlpha, FadeSpeed * deltaTime);
+                group.alpha = alpha;
+
+                if (inRange)
+                {
+                    string name = ResolveWeaponLabel(in weapon);
+                    hint.Label.text = $"[E]  {name}";
+                }
+
+                if (alpha > 0.01f && cam != null)
                 {
                     hint.Root.rotation = Quaternion.LookRotation(
                         hint.Root.position - cam.transform.position,
                         Vector3.up);
+                }
+
+                if (alpha <= 0f && !inRange)
+                {
+                    hint.Root.gameObject.SetActive(false);
                 }
             });
         }

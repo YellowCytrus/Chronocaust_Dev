@@ -23,46 +23,37 @@ namespace Chronocaust.Ecs
             CanvasScaler scaler = root.AddComponent<CanvasScaler>();
             scaler.dynamicPixelsPerUnit = 10f;
 
-            root.AddComponent<GraphicRaycaster>();
+            CanvasGroup group = root.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
 
-            RectTransform panelRt = CreateChild(root.transform, "Panel");
-            panelRt.sizeDelta = new Vector2(220f, 56f);
-            Image panel = panelRt.gameObject.AddComponent<Image>();
-            panel.sprite = Resources.GetBuiltinResource<Sprite>("UISprite.psd");
-            panel.color = CombatHudTheme.PanelBackground;
-            panel.raycastTarget = false;
-            Outline outline = panelRt.gameObject.AddComponent<Outline>();
-            outline.effectColor = CombatHudTheme.PanelBorder;
-            outline.effectDistance = new Vector2(1f, -1f);
-
-            RectTransform textRt = CreateChild(panelRt, "Label");
-            textRt.anchorMin = Vector2.zero;
-            textRt.anchorMax = Vector2.one;
-            textRt.offsetMin = new Vector2(8f, 6f);
-            textRt.offsetMax = new Vector2(-8f, -6f);
+            RectTransform textRt = CreateChild(root.transform, "Label");
+            textRt.sizeDelta = new Vector2(300f, 44f);
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             Text label = textRt.gameObject.AddComponent<Text>();
             label.font = font;
-            label.fontSize = 16;
+            label.fontSize = 18;
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
             label.color = CombatHudTheme.AccentWarm;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Overflow;
             label.raycastTarget = false;
             label.text = "[E] Pick up";
 
             Shadow shadow = label.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.75f);
-            shadow.effectDistance = new Vector2(1f, -1f);
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            shadow.effectDistance = new Vector2(1.5f, -1.5f);
 
             root.SetActive(false);
 
             return new GroundWeaponHintViewComponent
             {
                 Root = root.transform,
-                Label = label
+                Label = label,
+                Group = group
             };
         }
 
