@@ -19,6 +19,9 @@ namespace Chronocaust.Ecs.Systems
                 new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical")), 1f);
             bool fire = Input.GetMouseButton(0);
             bool interact = Input.GetKeyDown(KeyCode.E);
+            bool drop = Input.GetKeyDown(KeyCode.G);
+            bool slot0 = Input.GetKeyDown(KeyCode.Alpha1);
+            bool slot1 = Input.GetKeyDown(KeyCode.Alpha2);
 
             _query.ForEach((EntityId id,
                 ref PlayerTagComponent _,
@@ -33,6 +36,9 @@ namespace Chronocaust.Ecs.Systems
                 input.MouseWorldPosition = mouseWorld;
                 input.FirePressed = fire;
                 input.InteractPressed = interact;
+                input.DropPressed = drop;
+                input.SelectSlot0Pressed = slot0;
+                input.SelectSlot1Pressed = slot1;
                 input.MoveInput = rawMove;
             });
         }

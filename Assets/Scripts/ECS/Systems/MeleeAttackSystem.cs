@@ -11,6 +11,7 @@ namespace Chronocaust.Ecs.Systems
 
         // Reusable buffer for Physics2D overlap — avoids per-frame allocation.
         private readonly Collider2D[] _hitBuffer = new Collider2D[32];
+        private static readonly ContactFilter2D HitFilter = ContactFilter2D.noFilter;
 
         private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent,
             AimComponent, EquippedWeaponComponent, WeaponCooldownComponent,
@@ -52,7 +53,7 @@ namespace Chronocaust.Ecs.Systems
                 float   range     = melee.Range > 0f ? melee.Range : 1.5f;
                 float   halfArc   = (melee.ArcAngle > 0f ? melee.ArcAngle : 90f) * 0.5f;
 
-                int hitCount = Physics2D.OverlapCircleNonAlloc(origin, range, _hitBuffer);
+                int hitCount = Physics2D.OverlapCircle(origin, range, HitFilter, _hitBuffer);
 
                 for (int h = 0; h < hitCount; h++)
                 {

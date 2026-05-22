@@ -6,6 +6,90 @@ namespace Chronocaust.Ecs.Components
 {
     public struct PlayerTagComponent : IEcsComponent { }
 
+    /// <summary>Hit points. Simulation systems write Current; HUD reads both fields.</summary>
+    public struct HealthComponent : IEcsComponent
+    {
+        public float Current;
+        public float Max;
+
+        public float Ratio => Max > 0f ? Mathf.Clamp01(Current / Max) : 0f;
+        public bool IsAlive => Current > 0f;
+    }
+
+    /// <summary>Scene-authored UI references. Written only by PlayerHudSystem (rendering layer).</summary>
+    public struct PlayerHudViewComponent : IEcsComponent
+    {
+        public UnityEngine.UI.Text HealthLabelText;
+        public UnityEngine.UI.Text HealthValueText;
+        public UnityEngine.UI.Image HealthFill;
+        public UnityEngine.UI.Image WeaponIcon;
+        public UnityEngine.UI.Image CooldownOverlay;
+        public UnityEngine.UI.Image CooldownBarFill;
+        public UnityEngine.UI.Image Slot0Icon;
+        public UnityEngine.UI.Image Slot1Icon;
+        public UnityEngine.UI.Image Slot0Frame;
+        public UnityEngine.UI.Image Slot1Frame;
+        public UnityEngine.UI.Text WeaponNameText;
+        public UnityEngine.UI.Text WeaponStatsText;
+        public UnityEngine.UI.Text HintText;
+        public GameObject HealthPanelRoot;
+        public GameObject WeaponPanelRoot;
+    }
+
+    /// <summary>Serialized weapon in one of the player's two inventory slots.</summary>
+    public struct WeaponSlotEntry
+    {
+        public string DisplayName;
+        public Sprite WeaponSprite;
+        public Sprite ProjectileSprite;
+        public float WeaponSpriteScale;
+        public float ProjectileSpriteScale;
+        public int WeaponSortingOrder;
+        public int ProjectileSortingOrder;
+        public float FireRate;
+        public float ProjectileSpeed;
+        public float ProjectileLifetime;
+        public Vector2 MuzzleOffset;
+        public float MovementSpeedMultiplier;
+        public Sprite[] ShootEffectFrames;
+        public float ShootEffectFrameDuration;
+        public float ShootEffectScale;
+        public Vector2 ShootEffectMuzzleOffset;
+        public float RecoilStrength;
+        public float RecoilDecayRate;
+        public WeaponKind Kind;
+        public int PelletCount;
+        public float SpreadAngle;
+        public float BeamDuration;
+        public float BeamWidth;
+        public Color BeamColor;
+        public float MeleeRange;
+        public float MeleeArcAngle;
+        public float CooldownRemaining;
+
+        public bool HasWeapon => WeaponSprite != null && FireRate > 0f;
+
+        public static WeaponSlotEntry Empty => default;
+    }
+
+    /// <summary>Two weapon slots; <see cref="EquippedWeaponComponent"/> mirrors the active slot for combat systems.</summary>
+    public struct WeaponLoadoutComponent : IEcsComponent
+    {
+        public const int SlotCount = 2;
+
+        public WeaponSlotEntry Slot0;
+        public WeaponSlotEntry Slot1;
+        /// <summary>0 or 1 — which slot is currently wielded.</summary>
+        public int ActiveIndex;
+    }
+
+    /// <summary>World-space pickup prompt above a ground weapon.</summary>
+    public struct GroundWeaponHintViewComponent : IEcsComponent
+    {
+        public Transform Root;
+        public UnityEngine.UI.Text Label;
+    }
+
     public struct TransformComponent : IEcsComponent
     {
         public Transform Transform;
@@ -15,6 +99,9 @@ namespace Chronocaust.Ecs.Components
     {
         public bool FirePressed;
         public bool InteractPressed;
+        public bool DropPressed;
+        public bool SelectSlot0Pressed;
+        public bool SelectSlot1Pressed;
         public Vector3 MouseWorldPosition;
         public Vector2 MoveInput;
     }
@@ -29,6 +116,7 @@ namespace Chronocaust.Ecs.Components
     /// </summary>
     public struct WeaponComponent : IEcsComponent
     {
+        public string DisplayName;
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
         public float WeaponSpriteScale;
@@ -68,6 +156,7 @@ namespace Chronocaust.Ecs.Components
     /// </summary>
     public struct EquippedWeaponComponent : IEcsComponent
     {
+        public string DisplayName;
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
         public float WeaponSpriteScale;
@@ -91,6 +180,7 @@ namespace Chronocaust.Ecs.Components
 
         public static EquippedWeaponComponent From(in WeaponComponent source) => new EquippedWeaponComponent
         {
+            DisplayName = source.DisplayName,
             WeaponSprite = source.WeaponSprite,
             ProjectileSprite = source.ProjectileSprite,
             WeaponSpriteScale = source.WeaponSpriteScale > 0f ? source.WeaponSpriteScale : 1f,

@@ -13,5 +13,8 @@ namespace Chronocaust.Ecs
         public bool UseIsometricAxes = true;
         public Vector2 IsometricRightAxis = new Vector2(1f, 0.5f);
         public Vector2 IsometricUpAxis = new Vector2(-1f, 0.5f);
+
+        [Header("Health")]
+        [Min(1f)] public float MaxHealth = 100f;
     }
 }

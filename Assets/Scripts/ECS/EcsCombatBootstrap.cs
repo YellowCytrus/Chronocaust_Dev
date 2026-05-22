@@ -18,6 +18,9 @@ namespace Chronocaust.Ecs
         [Tooltip("Leave empty if the player starts unarmed.")]
         [SerializeField] private WeaponDefinition startingWeapon;
 
+        [Header("HUD")]
+        [SerializeField] private PlayerHudAuthoring hudAuthoring;
+
         private EcsWorld _world;
 
         private void Awake()
@@ -28,6 +31,8 @@ namespace Chronocaust.Ecs
                 enabled = false;
                 return;
             }
+
+            EnsureHudAuthoring();
 
             _world = new EcsWorld();
             BindDestroyCallback(_world);
@@ -68,6 +73,7 @@ namespace Chronocaust.Ecs
             // Simulation — Update
             world.AddSystem(new PlayerInputSystem());
             world.AddSystem(new PlayerAimSystem());
+            world.AddSystem(new WeaponInventorySystem());
             world.AddSystem(new WeaponPickupSystem());
             world.AddSystem(new WeaponShootSystem());
             world.AddSystem(new ShotgunShootSystem());
@@ -82,6 +88,8 @@ namespace Chronocaust.Ecs
             world.AddSystem(new MuzzleFlashAnimationSystem());
             world.AddSystem(new BeamAnimationSystem());
             world.AddSystem(new CharacterAnimationSystem());
+            world.AddSystem(new GroundWeaponHintSystem());
+            world.AddSystem(new PlayerHudSystem());
 
             // Simulation — FixedUpdate
             world.AddSystem(new RecoilDecaySystem());
@@ -95,6 +103,9 @@ namespace Chronocaust.Ecs
 
         private void CreatePlayerEntity(EcsWorld world)
         {
+            PlayerHudViewComponent hudView = default;
+            bool hasHudView = hudAuthoring != null && hudAuthoring.TryGetView(out hudView);
+
             // Build the exact archetype signature upfront — entity is born in the right archetype.
             ComponentSignature sig = ComponentSignature.Empty
                 .With<PlayerTagComponent>()
@@ -102,10 +113,17 @@ namespace Chronocaust.Ecs
                 .With<InputStateComponent>()
                 .With<AimComponent>()
                 .With<MovementComponent>()
+                .With<HealthComponent>()
+                .With<WeaponLoadoutComponent>()
                 .With<EquippedWeaponComponent>()
                 .With<WeaponCooldownComponent>()
                 .With<WeaponViewComponent>()
                 .With<RecoilComponent>();
+
+            if (hasHudView)
+            {
+                sig = sig.With<PlayerHudViewComponent>();
+            }
 
             Rigidbody2D rb = playerTransform.GetComponent<Rigidbody2D>();
             if (rb != null) sig = sig.With<RigidbodyComponent>();
@@ -141,12 +159,14 @@ namespace Chronocaust.Ecs
 
             ref MovementComponent movement = ref world.GetComponent<MovementComponent>(player);
             PlayerAuthoring authoring = playerTransform.GetComponent<PlayerAuthoring>();
+            float maxHealth = 100f;
             if (authoring != null)
             {
                 movement.BaseSpeed = authoring.BaseMovementSpeed;
                 movement.UseIsometricAxes = authoring.UseIsometricAxes;
                 movement.IsometricRightAxis = authoring.IsometricRightAxis;
                 movement.IsometricUpAxis = authoring.IsometricUpAxis;
+                maxHealth = authoring.MaxHealth;
             }
             else
             {
@@ -157,56 +177,22 @@ namespace Chronocaust.Ecs
                 movement.IsometricUpAxis = new Vector2(-1f, 0.5f);
             }
 
+            ref HealthComponent health = ref world.GetComponent<HealthComponent>(player);
+            health.Max = maxHealth;
+            health.Current = maxHealth;
+
+            if (hasHudView)
+            {
+                world.GetComponent<PlayerHudViewComponent>(player) = hudView;
+            }
+
+            ref WeaponLoadoutComponent loadout = ref world.GetComponent<WeaponLoadoutComponent>(player);
+            loadout.ActiveIndex = 0;
+
             if (startingWeapon != null)
             {
-                ref EquippedWeaponComponent equipped = ref world.GetComponent<EquippedWeaponComponent>(player);
-                equipped.WeaponSprite = startingWeapon.WeaponSprite;
-                equipped.ProjectileSprite = startingWeapon.ProjectileSprite;
-                equipped.WeaponSpriteScale = startingWeapon.WeaponSpriteScale;
-                equipped.ProjectileSpriteScale = startingWeapon.ProjectileSpriteScale;
-                equipped.WeaponSortingOrder = startingWeapon.WeaponSortingOrder;
-                equipped.ProjectileSortingOrder = startingWeapon.ProjectileSortingOrder;
-                equipped.FireRate = startingWeapon.FireRate;
-                equipped.ProjectileSpeed = startingWeapon.ProjectileSpeed;
-                equipped.ProjectileLifetime = startingWeapon.ProjectileLifetime;
-                equipped.MuzzleOffset = startingWeapon.MuzzleOffset;
-                equipped.MovementSpeedMultiplier = startingWeapon.MovementSpeedMultiplier;
-                equipped.ShootEffectFrames = startingWeapon.ShootEffectFrames;
-                equipped.ShootEffectFrameDuration = startingWeapon.ShootEffectFrameDuration > 0f
-                    ? startingWeapon.ShootEffectFrameDuration : 0.05f;
-                equipped.ShootEffectScale = startingWeapon.ShootEffectScale > 0f
-                    ? startingWeapon.ShootEffectScale : 1f;
-                equipped.ShootEffectMuzzleOffset = startingWeapon.ShootEffectMuzzleOffset;
-                equipped.RecoilStrength = startingWeapon.RecoilStrength;
-                equipped.RecoilDecayRate = startingWeapon.RecoilDecayRate > 0f
-                    ? startingWeapon.RecoilDecayRate : 8f;
-
-                // Fill type-specific data components — they were added to sig above.
-                switch (startingWeapon.Kind)
-                {
-                    case WeaponKind.Shotgun:
-                        world.GetComponent<ShotgunDataComponent>(player) = new ShotgunDataComponent
-                        {
-                            PelletCount = startingWeapon.PelletCount > 0 ? startingWeapon.PelletCount : 8,
-                            SpreadAngle = startingWeapon.SpreadAngle
-                        };
-                        break;
-                    case WeaponKind.Laser:
-                        world.GetComponent<LaserDataComponent>(player) = new LaserDataComponent
-                        {
-                            BeamDuration = startingWeapon.BeamDuration > 0f ? startingWeapon.BeamDuration : 0.3f,
-                            BeamWidth    = startingWeapon.BeamWidth > 0f ? startingWeapon.BeamWidth : 0.1f,
-                            BeamColor    = startingWeapon.BeamColor
-                        };
-                        break;
-                    case WeaponKind.Melee:
-                        world.GetComponent<MeleeDataComponent>(player) = new MeleeDataComponent
-                        {
-                            Range    = startingWeapon.MeleeRange > 0f ? startingWeapon.MeleeRange : 1.5f,
-                            ArcAngle = startingWeapon.MeleeArcAngle > 0f ? startingWeapon.MeleeArcAngle : 90f
-                        };
-                        break;
-                }
+                loadout.Slot0 = WeaponDefinitionToSlot(startingWeapon);
+                WeaponInventoryUtility.ApplySlotToEntity(world, player, ref loadout, 0);
             }
 
             // Initialise WeaponView GameObject here (not lazily inside a system).
@@ -237,7 +223,7 @@ namespace Chronocaust.Ecs
         private void CreateGroundWeapons(EcsWorld world)
         {
             GroundWeaponAuthoring[] authorings =
-                FindObjectsByType<GroundWeaponAuthoring>(FindObjectsSortMode.None);
+                FindObjectsByType<GroundWeaponAuthoring>(FindObjectsInactive.Exclude);
             if (authorings == null || authorings.Length == 0)
             {
                 return;
@@ -246,7 +232,8 @@ namespace Chronocaust.Ecs
             ComponentSignature signature = ComponentSignature.Empty
                 .With<GroundWeaponTagComponent>()
                 .With<TransformComponent>()
-                .With<WeaponComponent>();
+                .With<WeaponComponent>()
+                .With<GroundWeaponHintViewComponent>();
 
             int count = authorings.Length;
             for (int i = 0; i < count; i++)
@@ -262,6 +249,7 @@ namespace Chronocaust.Ecs
                 world.GetComponent<TransformComponent>(id).Transform = authoring.transform;
 
                 ref WeaponComponent weapon = ref world.GetComponent<WeaponComponent>(id);
+                weapon.DisplayName = authoring.Definition.DisplayName;
                 weapon.WeaponSprite = authoring.Definition.WeaponSprite;
                 weapon.ProjectileSprite = authoring.Definition.ProjectileSprite;
                 weapon.WeaponSpriteScale = authoring.Definition.WeaponSpriteScale;
@@ -292,7 +280,45 @@ namespace Chronocaust.Ecs
                 weapon.BeamColor     = authoring.Definition.BeamColor;
                 weapon.MeleeRange    = authoring.Definition.MeleeRange > 0f ? authoring.Definition.MeleeRange : 1.5f;
                 weapon.MeleeArcAngle = authoring.Definition.MeleeArcAngle > 0f ? authoring.Definition.MeleeArcAngle : 90f;
+
+                world.GetComponent<GroundWeaponHintViewComponent>(id) =
+                    GroundWeaponHintFactory.Create(authoring.transform);
             }
+        }
+
+        private static WeaponSlotEntry WeaponDefinitionToSlot(WeaponDefinition definition)
+        {
+            WeaponComponent weapon = new WeaponComponent
+            {
+                DisplayName = definition.DisplayName,
+                WeaponSprite = definition.WeaponSprite,
+                ProjectileSprite = definition.ProjectileSprite,
+                WeaponSpriteScale = definition.WeaponSpriteScale,
+                ProjectileSpriteScale = definition.ProjectileSpriteScale,
+                WeaponSortingOrder = definition.WeaponSortingOrder,
+                ProjectileSortingOrder = definition.ProjectileSortingOrder,
+                FireRate = definition.FireRate,
+                ProjectileSpeed = definition.ProjectileSpeed,
+                ProjectileLifetime = definition.ProjectileLifetime,
+                MuzzleOffset = definition.MuzzleOffset,
+                MovementSpeedMultiplier = definition.MovementSpeedMultiplier,
+                ShootEffectFrames = definition.ShootEffectFrames,
+                ShootEffectFrameDuration = definition.ShootEffectFrameDuration,
+                ShootEffectScale = definition.ShootEffectScale,
+                ShootEffectMuzzleOffset = definition.ShootEffectMuzzleOffset,
+                RecoilStrength = definition.RecoilStrength,
+                RecoilDecayRate = definition.RecoilDecayRate,
+                Kind = definition.Kind,
+                PelletCount = definition.PelletCount,
+                SpreadAngle = definition.SpreadAngle,
+                BeamDuration = definition.BeamDuration,
+                BeamWidth = definition.BeamWidth,
+                BeamColor = definition.BeamColor,
+                MeleeRange = definition.MeleeRange,
+                MeleeArcAngle = definition.MeleeArcAngle,
+            };
+
+            return WeaponInventoryUtility.FromWeaponComponent(in weapon);
         }
 
         private void DisableLegacyMovementController()
@@ -301,6 +327,21 @@ namespace Chronocaust.Ecs
             IsometricPlayerMovementController legacy =
                 playerTransform.GetComponent<IsometricPlayerMovementController>();
             if (legacy != null) legacy.enabled = false;
+        }
+
+        private void EnsureHudAuthoring()
+        {
+            if (hudAuthoring == null)
+            {
+                hudAuthoring = GetComponent<PlayerHudAuthoring>();
+            }
+
+            if (hudAuthoring == null)
+            {
+                hudAuthoring = gameObject.AddComponent<PlayerHudAuthoring>();
+            }
+
+            hudAuthoring.EnsureBuilt();
         }
     }
 }
