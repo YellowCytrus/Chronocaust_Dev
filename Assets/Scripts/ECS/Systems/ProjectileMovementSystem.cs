@@ -16,7 +16,7 @@ namespace Chronocaust.Ecs.Systems
                 ref ProjectileComponent projectile,
                 ref TransformComponent transform) =>
             {
-                if (transform.Transform == null) return;
+                if (!projectile.IsActive || transform.Transform == null) return;
                 transform.Transform.position += (Vector3)(projectile.Direction * projectile.Speed * deltaTime);
             });
         }

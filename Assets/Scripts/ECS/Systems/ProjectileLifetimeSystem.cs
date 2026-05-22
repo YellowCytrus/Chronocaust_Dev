@@ -15,6 +15,8 @@ namespace Chronocaust.Ecs.Systems
                 ref ProjectileComponent projectile,
                 ref TransformComponent _) =>
             {
+                if (!projectile.IsActive) return;
+
                 projectile.TimeLeft -= deltaTime;
                 if (projectile.TimeLeft <= 0f)
                 {

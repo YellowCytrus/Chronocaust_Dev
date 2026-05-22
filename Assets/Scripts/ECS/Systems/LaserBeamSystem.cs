@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Chronocaust.Ecs;
 using Chronocaust.Ecs.Components;
 using Chronocaust.Ecs.Core;
 using UnityEngine;
@@ -10,12 +11,19 @@ namespace Chronocaust.Ecs.Systems
         private readonly List<BeamSpawnPayload>        _pendingBeams   = new List<BeamSpawnPayload>(4);
         private readonly List<MuzzleFlashSpawnPayload> _pendingFlashes = new List<MuzzleFlashSpawnPayload>(4);
 
+        private readonly PhysicsEntityRegistry _registry;
+
         private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent,
             AimComponent, EquippedWeaponComponent, WeaponCooldownComponent,
             LaserTagComponent, LaserDataComponent> _query;
 
         // Beam reaches toward the nearest physics collider or falls back to this distance.
         private const float MaxBeamLength = 20f;
+
+        public LaserBeamSystem(PhysicsEntityRegistry registry)
+        {
+            _registry = registry;
+        }
 
         public void Update(EcsWorld world, float deltaTime)
         {
@@ -62,6 +70,12 @@ namespace Chronocaust.Ecs.Systems
                 if (hit.collider != null && hit.distance > 0f)
                 {
                     length = SkinWidth + hit.distance;
+
+                    if (_registry.TryResolve(hit.collider, out EntityId target))
+                    {
+                        float damage = equipped.Damage > 0f ? equipped.Damage : 1f;
+                        CombatDamage.Apply(world, id, target, damage);
+                    }
                 }
 
                 _pendingBeams.Add(new BeamSpawnPayload

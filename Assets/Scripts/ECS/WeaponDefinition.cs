@@ -27,6 +27,8 @@ namespace Chronocaust.Ecs
         public Vector2 MuzzleOffset = new Vector2(0.45f, 0f);
 
         [Header("Stats")]
+        [Tooltip("Damage dealt per successful hit.")]
+        [Min(0.1f)] public float Damage = 10f;
         [Min(0.1f)] public float FireRate = 6f;
         [Min(0.1f)] public float ProjectileSpeed = 10f;
         [Min(0.1f)] public float ProjectileLifetime = 2f;

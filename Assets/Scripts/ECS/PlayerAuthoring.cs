@@ -8,6 +8,9 @@ namespace Chronocaust.Ecs
     /// </summary>
     public sealed class PlayerAuthoring : MonoBehaviour
     {
+        [Header("Combat")]
+        [Min(1f)] public float MaxHealth = 100f;
+
         [Header("Movement")]
         [Min(0.01f)] public float BaseMovementSpeed = 5f;
         public bool UseIsometricAxes = true;

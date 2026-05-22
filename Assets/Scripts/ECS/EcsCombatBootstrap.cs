@@ -18,7 +18,12 @@ namespace Chronocaust.Ecs
         [Tooltip("Leave empty if the player starts unarmed.")]
         [SerializeField] private WeaponDefinition startingWeapon;
 
+        [Header("Combat")]
+        [Tooltip("Layers that receive projectile and melee damage (e.g. Enemy).")]
+        [SerializeField] private LayerMask damageableLayers = ~0;
+
         private EcsWorld _world;
+        private PhysicsEntityRegistry _physicsRegistry;
 
         private void Awake()
         {
@@ -30,10 +35,12 @@ namespace Chronocaust.Ecs
             }
 
             _world = new EcsWorld();
-            BindDestroyCallback(_world);
-            RegisterSystems(_world);
+            _physicsRegistry = new PhysicsEntityRegistry();
+            BindDestroyCallback(_world, _physicsRegistry);
+            RegisterSystems(_world, _physicsRegistry);
             CreatePlayerEntity(_world);
             CreateGroundWeapons(_world);
+            CreateEnemyEntities(_world, _physicsRegistry);
             DisableLegacyMovementController();
         }
 
@@ -44,10 +51,12 @@ namespace Chronocaust.Ecs
         // Destroy callback — keeps EcsWorld Core free of Unity types
         // -----------------------------------------------------------------------
 
-        private static void BindDestroyCallback(EcsWorld world)
+        private static void BindDestroyCallback(EcsWorld world, PhysicsEntityRegistry registry)
         {
             world.OnEntityDestroyed += id =>
             {
+                registry.UnregisterEntity(id);
+
                 if (world.IsAlive(id) == false) return;
                 // At the moment of the callback the entity is still alive (data not yet removed).
                 // We read TransformComponent and destroy the linked GameObject.
@@ -63,7 +72,7 @@ namespace Chronocaust.Ecs
         // Systems — declared in execution order
         // -----------------------------------------------------------------------
 
-        private static void RegisterSystems(EcsWorld world)
+        private void RegisterSystems(EcsWorld world, PhysicsEntityRegistry registry)
         {
             // Simulation — Update
             world.AddSystem(new PlayerInputSystem());
@@ -71,8 +80,10 @@ namespace Chronocaust.Ecs
             world.AddSystem(new WeaponPickupSystem());
             world.AddSystem(new WeaponShootSystem());
             world.AddSystem(new ShotgunShootSystem());
-            world.AddSystem(new LaserBeamSystem());
-            world.AddSystem(new MeleeAttackSystem());
+            world.AddSystem(new LaserBeamSystem(registry));
+            world.AddSystem(new MeleeAttackSystem(registry));
+            world.AddSystem(new EnemyAttackSystem());
+            world.AddSystem(new EnemyDeathSystem());
             world.AddSystem(new ProjectileLifetimeSystem());
             world.AddSystem(new BeamLifetimeSystem());
             world.AddSystem(new RecoilApplySystem());
@@ -86,6 +97,8 @@ namespace Chronocaust.Ecs
             // Simulation — FixedUpdate
             world.AddSystem(new RecoilDecaySystem());
             world.AddSystem(new PlayerMovementSystem());
+            world.AddSystem(new EnemyChaseSystem());
+            world.AddSystem(new ProjectileHitSystem(registry, damageableLayers));
             world.AddSystem(new ProjectileMovementSystem());
         }
 
@@ -102,6 +115,7 @@ namespace Chronocaust.Ecs
                 .With<InputStateComponent>()
                 .With<AimComponent>()
                 .With<MovementComponent>()
+                .With<HealthComponent>()
                 .With<EquippedWeaponComponent>()
                 .With<WeaponCooldownComponent>()
                 .With<WeaponViewComponent>()
@@ -143,6 +157,9 @@ namespace Chronocaust.Ecs
             PlayerAuthoring authoring = playerTransform.GetComponent<PlayerAuthoring>();
             if (authoring != null)
             {
+                ref HealthComponent health = ref world.GetComponent<HealthComponent>(player);
+                health.Max = authoring.MaxHealth > 0f ? authoring.MaxHealth : 100f;
+                health.Current = health.Max;
                 movement.BaseSpeed = authoring.BaseMovementSpeed;
                 movement.UseIsometricAxes = authoring.UseIsometricAxes;
                 movement.IsometricRightAxis = authoring.IsometricRightAxis;
@@ -151,6 +168,9 @@ namespace Chronocaust.Ecs
             else
             {
                 Debug.LogWarning("EcsCombatBootstrap: PlayerAuthoring not found on playerTransform. Using defaults.");
+                ref HealthComponent health = ref world.GetComponent<HealthComponent>(player);
+                health.Max = 100f;
+                health.Current = 100f;
                 movement.BaseSpeed = 5f;
                 movement.UseIsometricAxes = true;
                 movement.IsometricRightAxis = new Vector2(1f, 0.5f);
@@ -162,6 +182,7 @@ namespace Chronocaust.Ecs
                 ref EquippedWeaponComponent equipped = ref world.GetComponent<EquippedWeaponComponent>(player);
                 equipped.WeaponSprite = startingWeapon.WeaponSprite;
                 equipped.ProjectileSprite = startingWeapon.ProjectileSprite;
+                equipped.Damage = startingWeapon.Damage;
                 equipped.WeaponSpriteScale = startingWeapon.WeaponSpriteScale;
                 equipped.ProjectileSpriteScale = startingWeapon.ProjectileSpriteScale;
                 equipped.WeaponSortingOrder = startingWeapon.WeaponSortingOrder;
@@ -263,6 +284,7 @@ namespace Chronocaust.Ecs
                 ref WeaponComponent weapon = ref world.GetComponent<WeaponComponent>(id);
                 weapon.WeaponSprite = authoring.Definition.WeaponSprite;
                 weapon.ProjectileSprite = authoring.Definition.ProjectileSprite;
+                weapon.Damage = authoring.Definition.Damage;
                 weapon.WeaponSpriteScale = authoring.Definition.WeaponSpriteScale;
                 weapon.ProjectileSpriteScale = authoring.Definition.ProjectileSpriteScale;
                 weapon.WeaponSortingOrder = authoring.Definition.WeaponSortingOrder;
@@ -319,6 +341,108 @@ namespace Chronocaust.Ecs
                 weapon.MeleeSpinTurns = authoring.Definition.MeleeSpinTurns;
                 weapon.MeleeViewSuppressFlipY = authoring.Definition.MeleeViewSuppressFlipY;
                 weapon.MeleeIdleVisualAimSmoothHz = authoring.Definition.MeleeIdleVisualAimSmoothHz;
+            }
+        }
+
+        private static void CreateEnemyEntities(EcsWorld world, PhysicsEntityRegistry registry)
+        {
+            EnemyAuthoring[] authorings = FindObjectsByType<EnemyAuthoring>(FindObjectsSortMode.None);
+            if (authorings == null || authorings.Length == 0)
+            {
+                return;
+            }
+
+            int count = authorings.Length;
+            for (int i = 0; i < count; i++)
+            {
+                EnemyAuthoring authoring = authorings[i];
+                if (authoring == null) continue;
+
+                ComponentSignature sig = ComponentSignature.Empty
+                    .With<EnemyTagComponent>()
+                    .With<TransformComponent>()
+                    .With<AimComponent>()
+                    .With<MovementComponent>()
+                    .With<HealthComponent>()
+                    .With<EnemyChaseComponent>()
+                    .With<EnemyAttackComponent>()
+                    .With<EquippedWeaponComponent>()
+                    .With<WeaponCooldownComponent>()
+                    .With<WeaponViewComponent>();
+
+                Rigidbody2D rb = authoring.GetComponent<Rigidbody2D>();
+                if (rb != null) sig = sig.With<RigidbodyComponent>();
+                else Debug.LogWarning($"EcsCombatBootstrap: Enemy '{authoring.name}' has no Rigidbody2D.");
+
+                IsometricCharacterRenderer isoRenderer =
+                    authoring.GetComponentInChildren<IsometricCharacterRenderer>();
+                if (isoRenderer != null) sig = sig.With<CharacterRenderComponent>();
+
+                EntityId enemy = world.CreateEntity(sig);
+                world.GetComponent<TransformComponent>(enemy).Transform = authoring.transform;
+                world.GetComponent<AimComponent>(enemy).Direction = Vector2.right;
+
+                ref MovementComponent movement = ref world.GetComponent<MovementComponent>(enemy);
+                movement.BaseSpeed = authoring.MoveSpeed > 0f ? authoring.MoveSpeed : 3.5f;
+                movement.UseIsometricAxes = false;
+                movement.IsometricRightAxis = Vector2.right;
+                movement.IsometricUpAxis = Vector2.up;
+
+                ref HealthComponent health = ref world.GetComponent<HealthComponent>(enemy);
+                health.Max = authoring.MaxHealth > 0f ? authoring.MaxHealth : 40f;
+                health.Current = health.Max;
+
+                ref EnemyChaseComponent chase = ref world.GetComponent<EnemyChaseComponent>(enemy);
+                chase.MoveSpeed = authoring.MoveSpeed > 0f ? authoring.MoveSpeed : 3.5f;
+                chase.StopDistance = authoring.StopDistance > 0f ? authoring.StopDistance : 0.85f;
+
+                ref EnemyAttackComponent attack = ref world.GetComponent<EnemyAttackComponent>(enemy);
+                attack.AttackRange = authoring.AttackRange > 0f ? authoring.AttackRange : 1.2f;
+                attack.UnarmedDamage = authoring.UnarmedDamage > 0f ? authoring.UnarmedDamage : 5f;
+
+                if (authoring.StartingWeapon != null)
+                {
+                    ref EquippedWeaponComponent equipped = ref world.GetComponent<EquippedWeaponComponent>(enemy);
+                    equipped.WeaponSprite = authoring.StartingWeapon.WeaponSprite;
+                    equipped.ProjectileSprite = authoring.StartingWeapon.ProjectileSprite;
+                    equipped.Damage = authoring.StartingWeapon.Damage;
+                    equipped.WeaponSpriteScale = authoring.StartingWeapon.WeaponSpriteScale;
+                    equipped.ProjectileSpriteScale = authoring.StartingWeapon.ProjectileSpriteScale;
+                    equipped.WeaponSortingOrder = authoring.StartingWeapon.WeaponSortingOrder;
+                    equipped.ProjectileSortingOrder = authoring.StartingWeapon.ProjectileSortingOrder;
+                    equipped.FireRate = authoring.StartingWeapon.FireRate;
+                    equipped.ProjectileSpeed = authoring.StartingWeapon.ProjectileSpeed;
+                    equipped.ProjectileLifetime = authoring.StartingWeapon.ProjectileLifetime;
+                    equipped.MuzzleOffset = authoring.StartingWeapon.MuzzleOffset;
+                    equipped.WeaponVisualBaseRotationDeg = authoring.StartingWeapon.WeaponVisualBaseRotationDeg;
+                    equipped.WeaponVisualMirrorX = authoring.StartingWeapon.WeaponVisualMirrorX;
+                    equipped.WeaponVisualMirrorY = authoring.StartingWeapon.WeaponVisualMirrorY;
+                    equipped.MovementSpeedMultiplier = authoring.StartingWeapon.MovementSpeedMultiplier;
+                    equipped.ShootEffectFrames = authoring.StartingWeapon.ShootEffectFrames;
+                    equipped.ShootEffectFrameDuration = authoring.StartingWeapon.ShootEffectFrameDuration > 0f
+                        ? authoring.StartingWeapon.ShootEffectFrameDuration : 0.05f;
+                    equipped.ShootEffectScale = authoring.StartingWeapon.ShootEffectScale > 0f
+                        ? authoring.StartingWeapon.ShootEffectScale : 1f;
+                    equipped.ShootEffectMuzzleOffset = authoring.StartingWeapon.ShootEffectMuzzleOffset;
+                    equipped.RecoilStrength = authoring.StartingWeapon.RecoilStrength;
+                    equipped.RecoilDecayRate = authoring.StartingWeapon.RecoilDecayRate > 0f
+                        ? authoring.StartingWeapon.RecoilDecayRate : 8f;
+                }
+
+                WeaponViewComponent view = CreateWeaponViewObject(authoring.transform);
+                world.GetComponent<WeaponViewComponent>(enemy) = view;
+
+                if (rb != null)
+                {
+                    world.GetComponent<RigidbodyComponent>(enemy).Rigidbody = rb;
+                }
+
+                if (isoRenderer != null)
+                {
+                    world.GetComponent<CharacterRenderComponent>(enemy).Renderer = isoRenderer;
+                }
+
+                registry.RegisterDamageableEntity(enemy, authoring.gameObject);
             }
         }
 

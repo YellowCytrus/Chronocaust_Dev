@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Chronocaust.Ecs;
 using Chronocaust.Ecs.Components;
 using Chronocaust.Ecs.Core;
 using UnityEngine;
@@ -9,12 +10,22 @@ namespace Chronocaust.Ecs.Systems
     {
         private const int MaxHitsTracked = 16;
 
+        private readonly PhysicsEntityRegistry _registry;
         private readonly List<MuzzleFlashSpawnPayload> _pendingFlashes = new List<MuzzleFlashSpawnPayload>(4);
         private static readonly Collider2D[] HitBuffer = new Collider2D[32];
+
+        private EcsWorld _meleeWorld;
+        private EntityId _meleeInstigator;
+        private float _meleeDamage;
 
         private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent,
             AimComponent, EquippedWeaponComponent, WeaponCooldownComponent,
             MeleeTagComponent, MeleeDataComponent> _query;
+
+        public MeleeAttackSystem(PhysicsEntityRegistry registry)
+        {
+            _registry = registry;
+        }
 
         public void Update(EcsWorld world, float deltaTime)
         {
@@ -55,6 +66,9 @@ namespace Chronocaust.Ecs.Systems
                     if (CanDealHit(in melee, attackT))
                     {
                         Vector2 origin = transform.Transform.position;
+                        _meleeWorld = world;
+                        _meleeInstigator = id;
+                        _meleeDamage = equipped.Damage > 0f ? equipped.Damage : 1f;
                         ProcessHits(ref melee, transform.Transform, origin, ref aim, attackT);
                     }
 
@@ -203,7 +217,7 @@ namespace Chronocaust.Ecs.Systems
                 && attackT <= melee.HitWindowEndT;
         }
 
-        private static void ProcessHits(ref MeleeDataComponent melee, Transform attackerRoot,
+        private void ProcessHits(ref MeleeDataComponent melee, Transform attackerRoot,
             Vector2 origin, ref AimComponent aim, float attackT)
         {
             if (MeleeWeaponPose.IsFixedSlam(in melee))
@@ -233,7 +247,7 @@ namespace Chronocaust.Ecs.Systems
             }
         }
 
-        private static void ProcessHitsFixedSlam(ref MeleeDataComponent melee, Transform attackerRoot, Vector2 origin)
+        private void ProcessHitsFixedSlam(ref MeleeDataComponent melee, Transform attackerRoot, Vector2 origin)
         {
             float depth = melee.SlamStrikeDepth > 0f ? melee.SlamStrikeDepth : 0.32f;
             float sideOffset = melee.SlamHitSideOffset > 0f ? melee.SlamHitSideOffset : 0.12f;
@@ -251,7 +265,7 @@ namespace Chronocaust.Ecs.Systems
             }
         }
 
-        private static void ProcessHitsArc(ref MeleeDataComponent melee, Transform attackerRoot,
+        private void ProcessHitsArc(ref MeleeDataComponent melee, Transform attackerRoot,
             Vector2 origin, Vector2 attackDir)
         {
             float range = melee.Range > 0f ? melee.Range : 1.5f;
@@ -274,7 +288,7 @@ namespace Chronocaust.Ecs.Systems
             }
         }
 
-        private static void ProcessHitsThrust(ref MeleeDataComponent melee, Transform attackerRoot,
+        private void ProcessHitsThrust(ref MeleeDataComponent melee, Transform attackerRoot,
             Vector2 origin, Vector2 attackDir, float attackT)
         {
             float thrustDist = melee.ThrustDistance > 0f ? melee.ThrustDistance : melee.Range;
@@ -293,7 +307,7 @@ namespace Chronocaust.Ecs.Systems
             }
         }
 
-        private static void ProcessHitsDirectionalSlam(ref MeleeDataComponent melee, Transform attackerRoot,
+        private void ProcessHitsDirectionalSlam(ref MeleeDataComponent melee, Transform attackerRoot,
             Vector2 origin, Vector2 attackDir)
         {
             float depth = melee.SlamStrikeDepth > 0f ? melee.SlamStrikeDepth : 0.32f;
@@ -310,7 +324,7 @@ namespace Chronocaust.Ecs.Systems
             }
         }
 
-        private static void ProcessHitsSpin(ref MeleeDataComponent melee, Transform attackerRoot, Vector2 origin)
+        private void ProcessHitsSpin(ref MeleeDataComponent melee, Transform attackerRoot, Vector2 origin)
         {
             float range = melee.Range > 0f ? melee.Range : 1.5f;
             int hitCount = Physics2D.OverlapCircleNonAlloc(origin, range, HitBuffer);
@@ -328,14 +342,24 @@ namespace Chronocaust.Ecs.Systems
             return col.transform == attackerRoot || col.transform.IsChildOf(attackerRoot);
         }
 
-        private static void TryRegisterHit(ref MeleeDataComponent melee, Collider2D col)
+        private void TryRegisterHit(ref MeleeDataComponent melee, Collider2D col)
         {
-            int id = col.GetInstanceID();
-            if (HasHitId(in melee, id)) return;
+            int colId = col.GetInstanceID();
+            if (HasHitId(in melee, colId)) return;
             if (melee.HitCount >= MaxHitsTracked) return;
-            SetHitId(ref melee, melee.HitCount, id);
+
+            if (!_registry.TryResolve(col, out EntityId target))
+            {
+                return;
+            }
+
+            if (!CombatDamage.Apply(_meleeWorld, _meleeInstigator, target, _meleeDamage))
+            {
+                return;
+            }
+
+            SetHitId(ref melee, melee.HitCount, colId);
             melee.HitCount++;
-            Debug.Log($"[MeleeAttack] Hit: {col.gameObject.name} motion={melee.MotionType}");
         }
 
         private static bool HasHitId(in MeleeDataComponent melee, int instanceId)

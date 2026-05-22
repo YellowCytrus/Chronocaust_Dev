@@ -68,6 +68,8 @@ namespace Chronocaust.Ecs.Systems
                         Direction      = pelletDir,
                         Speed          = equipped.ProjectileSpeed,
                         Lifetime       = equipped.ProjectileLifetime,
+                        Damage         = equipped.Damage,
+                        Instigator     = id,
                         ProjectileSprite = equipped.ProjectileSprite,
                         FallbackSprite = equipped.WeaponSprite,
                         ProjectileScale = equipped.ProjectileSpriteScale > 0f ? equipped.ProjectileSpriteScale : 1f,

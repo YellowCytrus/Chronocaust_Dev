@@ -31,6 +31,7 @@ namespace Chronocaust.Ecs.Components
     {
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
+        public float Damage;
         public float WeaponSpriteScale;
         public float ProjectileSpriteScale;
         public int WeaponSortingOrder;
@@ -101,6 +102,7 @@ namespace Chronocaust.Ecs.Components
     {
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
+        public float Damage;
         public float WeaponSpriteScale;
         public float ProjectileSpriteScale;
         public int WeaponSortingOrder;
@@ -128,6 +130,7 @@ namespace Chronocaust.Ecs.Components
         {
             WeaponSprite = source.WeaponSprite,
             ProjectileSprite = source.ProjectileSprite,
+            Damage = source.Damage,
             WeaponSpriteScale = source.WeaponSpriteScale > 0f ? source.WeaponSpriteScale : 1f,
             ProjectileSpriteScale = source.ProjectileSpriteScale > 0f ? source.ProjectileSpriteScale : 1f,
             WeaponSortingOrder = source.WeaponSortingOrder,
@@ -166,6 +169,9 @@ namespace Chronocaust.Ecs.Components
         public Vector2 Direction;
         public float Speed;
         public float TimeLeft;
+        public float Damage;
+        public EntityId Instigator;
+        public bool IsActive;
     }
 
     public struct RigidbodyComponent : IEcsComponent
@@ -187,6 +193,26 @@ namespace Chronocaust.Ecs.Components
     public struct CharacterRenderComponent : IEcsComponent
     {
         public IsometricCharacterRenderer Renderer;
+    }
+
+    public struct EnemyTagComponent : IEcsComponent { }
+
+    public struct HealthComponent : IEcsComponent
+    {
+        public float Current;
+        public float Max;
+    }
+
+    public struct EnemyChaseComponent : IEcsComponent
+    {
+        public float MoveSpeed;
+        public float StopDistance;
+    }
+
+    public struct EnemyAttackComponent : IEcsComponent
+    {
+        public float AttackRange;
+        public float UnarmedDamage;
     }
 
     /// <summary>

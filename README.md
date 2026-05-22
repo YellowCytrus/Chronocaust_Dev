@@ -1,5 +1,7 @@
 # Chronocaust ECS — Architecture Reference
 
+**Сцена:** [Как добавить врага](HOWTO_ADD_ENEMY.md) · [Как добавить оружие на землю](docs/gides/add_weapon.md)
+
 ## Overview
 
 This is a hand-rolled **archetype ECS** for Unity. It follows the data-oriented design rules in `.cursorrules`.
