@@ -6,6 +6,110 @@ namespace Chronocaust.Ecs.Components
 {
     public struct PlayerTagComponent : IEcsComponent { }
 
+    /// <summary>Scene-authored UI references. Written only by PlayerHudSystem (rendering layer).</summary>
+    public struct PlayerHudViewComponent : IEcsComponent
+    {
+        public UnityEngine.UI.Text HealthLabelText;
+        public UnityEngine.UI.Text HealthValueText;
+        public UnityEngine.UI.Image HealthFill;
+        public UnityEngine.UI.Image WeaponIcon;
+        public UnityEngine.UI.Image CooldownOverlay;
+        public UnityEngine.UI.Image CooldownBarFill;
+        public UnityEngine.UI.Image Slot0Icon;
+        public UnityEngine.UI.Image Slot1Icon;
+        public UnityEngine.UI.Image Slot0Frame;
+        public UnityEngine.UI.Image Slot1Frame;
+        public UnityEngine.UI.Text WeaponNameText;
+        public UnityEngine.UI.Text WeaponStatsText;
+        public UnityEngine.UI.Text HintText;
+        public GameObject HealthPanelRoot;
+        public GameObject WeaponPanelRoot;
+    }
+
+    /// <summary>Serialized weapon in one of the player's two inventory slots.</summary>
+    public struct WeaponSlotEntry
+    {
+        public string DisplayName;
+        public Sprite WeaponSprite;
+        public Sprite ProjectileSprite;
+        public float Damage;
+        public float WeaponSpriteScale;
+        public float ProjectileSpriteScale;
+        public int WeaponSortingOrder;
+        public int ProjectileSortingOrder;
+        public float FireRate;
+        public float ProjectileSpeed;
+        public float ProjectileLifetime;
+        public Vector2 MuzzleOffset;
+        public float WeaponVisualBaseRotationDeg;
+        public bool WeaponVisualMirrorX;
+        public bool WeaponVisualMirrorY;
+        public float MovementSpeedMultiplier;
+        public Sprite[] ShootEffectFrames;
+        public float ShootEffectFrameDuration;
+        public float ShootEffectScale;
+        public Vector2 ShootEffectMuzzleOffset;
+        public float RecoilStrength;
+        public float RecoilDecayRate;
+        public WeaponKind Kind;
+        public int PelletCount;
+        public float SpreadAngle;
+        public float BeamDuration;
+        public float BeamWidth;
+        public Color BeamColor;
+        public float MeleeRange;
+        public float MeleeArcAngle;
+        public MeleeMotionType MeleeMotionType;
+        public float MeleeStartupDuration;
+        public float MeleeActiveDuration;
+        public float MeleeRecoveryDuration;
+        public float MeleeHitWindowStartT;
+        public float MeleeHitWindowEndT;
+        public float MeleeAnticipationPull;
+        public float MeleeThrustDistance;
+        public float MeleeThrustHitRadius;
+        public float MeleeThrustVisualTiltMaxDeg;
+        public float MeleeSlamWindupDeg;
+        public float MeleeSlamDownDeg;
+        public float MeleeSlamWindupOffsetY;
+        public float MeleeSlamStrikeDepth;
+        public bool MeleeSlamUseFixedAimDir;
+        public Vector2 MeleeSlamPoseOffsetRight;
+        public float MeleeSlamPoseRotRight;
+        public Vector2 MeleeSlamPoseOffsetLeft;
+        public float MeleeSlamPoseRotLeft;
+        public Vector2 MeleeSlamShootEffectOffsetRight;
+        public Vector2 MeleeSlamShootEffectOffsetLeft;
+        public float MeleeSlamHitSideOffset;
+        public float MeleeSpinTurns;
+        public bool MeleeViewSuppressFlipY;
+        public float MeleeIdleVisualAimSmoothHz;
+        public float CooldownRemaining;
+
+        public bool HasWeapon => WeaponSprite != null && FireRate > 0f;
+
+        public static WeaponSlotEntry Empty => default;
+    }
+
+    /// <summary>Two weapon slots; <see cref="EquippedWeaponComponent"/> mirrors the active slot for combat systems.</summary>
+    public struct WeaponLoadoutComponent : IEcsComponent
+    {
+        public const int SlotCount = 2;
+
+        public WeaponSlotEntry Slot0;
+        public WeaponSlotEntry Slot1;
+        /// <summary>0 or 1 — which slot is currently wielded.</summary>
+        public int ActiveIndex;
+    }
+
+    /// <summary>World-space pickup prompt above a ground weapon.</summary>
+    public struct GroundWeaponHintViewComponent : IEcsComponent
+    {
+        public Transform Root;
+        public UnityEngine.UI.Text Label;
+        public CanvasGroup Group;
+    }
+
     public struct TransformComponent : IEcsComponent
     {
         public Transform Transform;
@@ -15,6 +119,9 @@ namespace Chronocaust.Ecs.Components
     {
         public bool FirePressed;
         public bool InteractPressed;
+        public bool DropPressed;
+        public bool SelectSlot0Pressed;
+        public bool SelectSlot1Pressed;
         public Vector3 MouseWorldPosition;
         public Vector2 MoveInput;
     }
@@ -29,6 +136,7 @@ namespace Chronocaust.Ecs.Components
     /// </summary>
     public struct WeaponComponent : IEcsComponent
     {
+        public string DisplayName;
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
         public float Damage;
@@ -100,6 +208,7 @@ namespace Chronocaust.Ecs.Components
     /// </summary>
     public struct EquippedWeaponComponent : IEcsComponent
     {
+        public string DisplayName;
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
         public float Damage;
@@ -128,6 +237,7 @@ namespace Chronocaust.Ecs.Components
 
         public static EquippedWeaponComponent From(in WeaponComponent source) => new EquippedWeaponComponent
         {
+            DisplayName = source.DisplayName,
             WeaponSprite = source.WeaponSprite,
             ProjectileSprite = source.ProjectileSprite,
             Damage = source.Damage,
@@ -201,6 +311,9 @@ namespace Chronocaust.Ecs.Components
     {
         public float Current;
         public float Max;
+
+        public float Ratio => Max > 0f ? Mathf.Clamp01(Current / Max) : 0f;
+        public bool IsAlive => Current > 0f;
     }
 
     public struct EnemyChaseComponent : IEcsComponent

@@ -9,6 +9,8 @@ namespace Chronocaust.Ecs
     public sealed class WeaponDefinition : ScriptableObject
     {
         [Header("Visuals")]
+        [Tooltip("Shown on the combat HUD. Falls back to weapon type name when empty.")]
+        public string DisplayName;
         public Sprite WeaponSprite;
         public Sprite ProjectileSprite;
         [Tooltip("Uniform scale applied to the weapon sprite in the WeaponView child object.")]

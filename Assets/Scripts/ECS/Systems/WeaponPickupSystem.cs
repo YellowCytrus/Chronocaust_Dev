@@ -8,7 +8,6 @@ namespace Chronocaust.Ecs.Systems
 {
     public sealed class WeaponPickupSystem : IEcsUpdateSystem
     {
-        private const float PickupRadius = 1.5f;
         private const float CellSize = 2f;
 
         private struct GroundWeaponSnapshot
@@ -19,16 +18,20 @@ namespace Chronocaust.Ecs.Systems
         }
 
         private EcsQuery<GroundWeaponTagComponent, TransformComponent, WeaponComponent> _groundQuery;
-        private EcsQuery<PlayerTagComponent, TransformComponent, InputStateComponent, EquippedWeaponComponent> _playerQuery;
+        private EcsQuery<PlayerTagComponent, TransformComponent, AimComponent, InputStateComponent,
+            WeaponLoadoutComponent, EquippedWeaponComponent> _playerQuery;
 
         private readonly List<GroundWeaponSnapshot> _groundWeapons = new List<GroundWeaponSnapshot>(64);
         private readonly Dictionary<int, List<int>> _cellToWeaponIndices = new Dictionary<int, List<int>>(64);
 
         private struct PendingPickup
         {
-            public EntityId        PlayerId;
-            public ComponentSignature OldSig;   // snapshot of the player's archetype at pickup time
+            public EntityId PlayerId;
+            public int TargetSlot;
             public WeaponComponent NewWeapon;
+            public WeaponSlotEntry ReplacedEntry;
+            public bool HadReplacement;
+            public Vector2 DropPosition;
         }
 
         private readonly List<PendingPickup> _pendingPickups = new List<PendingPickup>(4);
@@ -36,7 +39,8 @@ namespace Chronocaust.Ecs.Systems
         public void Update(EcsWorld world, float deltaTime)
         {
             _groundQuery ??= world.CreateQuery<GroundWeaponTagComponent, TransformComponent, WeaponComponent>();
-            _playerQuery ??= world.CreateQuery<PlayerTagComponent, TransformComponent, InputStateComponent, EquippedWeaponComponent>();
+            _playerQuery ??= world.CreateQuery<PlayerTagComponent, TransformComponent, AimComponent,
+                InputStateComponent, WeaponLoadoutComponent, EquippedWeaponComponent>();
 
             RebuildGroundWeaponGrid();
 
@@ -47,12 +51,14 @@ namespace Chronocaust.Ecs.Systems
 
             _pendingPickups.Clear();
 
-            float pickupRadiusSq = PickupRadius * PickupRadius;
+            float pickupRadiusSq = WeaponInventoryUtility.PickupRadius * WeaponInventoryUtility.PickupRadius;
             _playerQuery.ForEach((EntityId playerId,
                 ref PlayerTagComponent _,
                 ref TransformComponent playerTransform,
+                ref AimComponent aim,
                 ref InputStateComponent input,
-                ref EquippedWeaponComponent equipped) =>
+                ref WeaponLoadoutComponent loadout,
+                ref EquippedWeaponComponent _) =>
             {
                 if (!input.InteractPressed || playerTransform.Transform == null)
                 {
@@ -67,75 +73,55 @@ namespace Chronocaust.Ecs.Systems
                 }
 
                 GroundWeaponSnapshot picked = _groundWeapons[bestIndex];
+                bool activeWasEmpty = !WeaponInventoryUtility.GetSlotCopy(in loadout, loadout.ActiveIndex).HasWeapon;
+
+                int targetSlot = WeaponInventoryUtility.FindFirstEmptySlot(in loadout);
+                if (targetSlot < 0)
+                {
+                    targetSlot = loadout.ActiveIndex;
+                }
+
+                ref WeaponSlotEntry target = ref WeaponInventoryUtility.GetSlot(ref loadout, targetSlot);
+                bool hadReplacement = target.HasWeapon;
+                WeaponSlotEntry replaced = target;
+
+                target = WeaponInventoryUtility.FromWeaponComponent(in picked.Weapon);
+
                 _pendingPickups.Add(new PendingPickup
                 {
-                    PlayerId  = playerId,
-                    OldSig    = world.GetSignature(playerId),
-                    NewWeapon = picked.Weapon
+                    PlayerId = playerId,
+                    TargetSlot = targetSlot,
+                    NewWeapon = picked.Weapon,
+                    ReplacedEntry = replaced,
+                    HadReplacement = hadReplacement,
+                    DropPosition = WeaponInventoryUtility.ComputeDropPosition(in playerTransform, in aim)
                 });
-                equipped = EquippedWeaponComponent.From(picked.Weapon);
+
                 world.CommandBuffer.DestroyEntity(picked.Id);
+
+                if (targetSlot == loadout.ActiveIndex || activeWasEmpty)
+                {
+                    if (activeWasEmpty && targetSlot != loadout.ActiveIndex)
+                    {
+                        loadout.ActiveIndex = targetSlot;
+                    }
+
+                    WeaponInventoryUtility.ApplySlotToEntity(world, playerId, ref loadout, loadout.ActiveIndex);
+                }
             });
 
-            // Structural changes (add/remove tag components) must happen outside ForEach.
             int count = _pendingPickups.Count;
             for (int i = 0; i < count; i++)
             {
                 PendingPickup p = _pendingPickups[i];
-                RemoveWeaponTypeTags(world, p.PlayerId, p.OldSig);
-                AddWeaponTypeTags(world, p.PlayerId, in p.NewWeapon);
-            }
-        }
-
-        /// <summary>
-        /// Removes whichever weapon-type tag+data components the entity currently carries.
-        /// Uses the archived signature snapshot so we don't branch on a data field.
-        /// </summary>
-        private static void RemoveWeaponTypeTags(EcsWorld world, EntityId id, ComponentSignature sig)
-        {
-            if (sig.Has<ShotgunTagComponent>())
-            {
-                world.CommandBuffer.RemoveComponent<ShotgunTagComponent>(id);
-                world.CommandBuffer.RemoveComponent<ShotgunDataComponent>(id);
-            }
-            else if (sig.Has<LaserTagComponent>())
-            {
-                world.CommandBuffer.RemoveComponent<LaserTagComponent>(id);
-                world.CommandBuffer.RemoveComponent<LaserDataComponent>(id);
-            }
-            else if (sig.Has<MeleeTagComponent>())
-            {
-                world.CommandBuffer.RemoveComponent<MeleeTagComponent>(id);
-                world.CommandBuffer.RemoveComponent<MeleeDataComponent>(id);
-            }
-        }
-
-        private static void AddWeaponTypeTags(EcsWorld world, EntityId id, in WeaponComponent w)
-        {
-            switch (w.Kind)
-            {
-                case Ecs.WeaponKind.Shotgun:
-                    world.CommandBuffer.AddComponent(id, new ShotgunTagComponent());
-                    world.CommandBuffer.AddComponent(id, new ShotgunDataComponent
+                if (p.HadReplacement)
+                {
+                    world.CommandBuffer.EnqueueSpawnGroundWeapon(new GroundWeaponSpawnPayload
                     {
-                        PelletCount = w.PelletCount > 0 ? w.PelletCount : 8,
-                        SpreadAngle = w.SpreadAngle
+                        Position = p.DropPosition,
+                        Entry = p.ReplacedEntry
                     });
-                    break;
-                case Ecs.WeaponKind.Laser:
-                    world.CommandBuffer.AddComponent(id, new LaserTagComponent());
-                    world.CommandBuffer.AddComponent(id, new LaserDataComponent
-                    {
-                        BeamDuration = w.BeamDuration > 0f ? w.BeamDuration : 0.3f,
-                        BeamWidth    = w.BeamWidth > 0f ? w.BeamWidth : 0.1f,
-                        BeamColor    = w.BeamColor
-                    });
-                    break;
-                case Ecs.WeaponKind.Melee:
-                    world.CommandBuffer.AddComponent(id, new MeleeTagComponent());
-                    world.CommandBuffer.AddComponent(id, MeleeDataSetup.FromWeaponComponent(in w));
-                    break;
-                // WeaponKind.Default: no tag, WeaponShootSystem handles via .Excluding<>
+                }
             }
         }
 
@@ -210,12 +196,10 @@ namespace Chronocaust.Ecs.Systems
             return bestIndex;
         }
 
-        private static Vector2Int ToCell(Vector2 position)
-        {
-            return new Vector2Int(
+        private static Vector2Int ToCell(Vector2 position) =>
+            new Vector2Int(
                 Mathf.FloorToInt(position.x / CellSize),
                 Mathf.FloorToInt(position.y / CellSize));
-        }
 
         private static int CellKey(int x, int y)
         {

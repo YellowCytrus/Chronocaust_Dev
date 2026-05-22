@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Chronocaust.Ecs.Components;
+using Chronocaust.Ecs;
 using UnityEngine;
 
 namespace Chronocaust.Ecs.Core
@@ -51,6 +52,7 @@ namespace Chronocaust.Ecs.Core
         private readonly List<ProjectileSpawnPayload> _projectileSpawns = new List<ProjectileSpawnPayload>(8);
         private readonly List<MuzzleFlashSpawnPayload> _flashSpawns = new List<MuzzleFlashSpawnPayload>(8);
         private readonly List<BeamSpawnPayload> _beamSpawns = new List<BeamSpawnPayload>(4);
+        private readonly List<GroundWeaponSpawnPayload> _groundWeaponSpawns = new List<GroundWeaponSpawnPayload>(4);
         private readonly List<ShotEvent> _shotEvents = new List<ShotEvent>(8);
 
         /// <summary>Shot events recorded this frame. Read by listener systems; cleared in Playback.</summary>
@@ -98,6 +100,12 @@ namespace Chronocaust.Ecs.Core
         public void EnqueueSpawnBeam(in BeamSpawnPayload payload)
         {
             _beamSpawns.Add(payload);
+        }
+
+        public void EnqueueSpawnGroundWeapon(in GroundWeaponSpawnPayload payload)
+        {
+            if (!payload.Entry.HasWeapon) return;
+            _groundWeaponSpawns.Add(payload);
         }
 
         // -----------------------------------------------------------------------
@@ -165,6 +173,13 @@ namespace Chronocaust.Ecs.Core
                 SpawnBeamImmediate(world, _beamSpawns[i]);
             }
             _beamSpawns.Clear();
+
+            int groundCount = _groundWeaponSpawns.Count;
+            for (int i = 0; i < groundCount; i++)
+            {
+                SpawnGroundWeaponImmediate(world, _groundWeaponSpawns[i]);
+            }
+            _groundWeaponSpawns.Clear();
 
             // Shot events are consumed by listener systems earlier in the same frame;
             // clear here so the list is empty at the start of the next frame.
@@ -298,6 +313,33 @@ namespace Chronocaust.Ecs.Core
         /// Uses Sprites/Default (works in Built-in and URP as a fallback).
         /// The shader must support vertex color interpolation — avoid Unlit/Color.
         /// </summary>
+        private static void SpawnGroundWeaponImmediate(EcsWorld world, GroundWeaponSpawnPayload p)
+        {
+            GameObject go = new GameObject("DroppedWeapon");
+            go.transform.position = p.Position;
+
+            SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = p.Entry.WeaponSprite;
+            float scale = p.Entry.WeaponSpriteScale > 0f ? p.Entry.WeaponSpriteScale : 1f;
+            go.transform.localScale = new Vector3(scale, scale, 1f);
+            sr.sortingOrder = p.Entry.WeaponSortingOrder;
+
+            ComponentSignature sig = ComponentSignature.Empty
+                .With<GroundWeaponTagComponent>()
+                .With<TransformComponent>()
+                .With<WeaponComponent>()
+                .With<GroundWeaponHintViewComponent>();
+
+            EntityId id = world.CreateEntity(sig);
+            world.GetComponent<TransformComponent>(id).Transform = go.transform;
+
+            ref WeaponComponent weapon = ref world.GetComponent<WeaponComponent>(id);
+            weapon = WeaponInventoryUtility.ToWeaponComponent(in p.Entry);
+
+            world.GetComponent<GroundWeaponHintViewComponent>(id) =
+                GroundWeaponHintFactory.Create(go.transform);
+        }
+
         private static Material CreateBeamMaterial()
         {
             // Sprites/Default properly reads vertexColor on LineRenderer in Built-in RP.
@@ -338,6 +380,12 @@ namespace Chronocaust.Ecs.Core
         public float FrameDuration;
         public float Scale;
         public int SortingOrder;
+    }
+
+    public struct GroundWeaponSpawnPayload
+    {
+        public Vector3 Position;
+        public WeaponSlotEntry Entry;
     }
 
     /// <summary>Plain data payload for deferred laser-beam spawning.</summary>
