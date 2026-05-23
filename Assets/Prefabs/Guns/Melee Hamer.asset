@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ae4b31038c606192b211e908523aa8c, type: 3}
   m_Name: Melee Hamer
   m_EditorClassIdentifier: Assembly-CSharp::Chronocaust.Ecs.WeaponDefinition
+  DisplayName: 
   WeaponSprite: {fileID: 611642798714865061, guid: e624d0434657b30b19d499598f0f98a2,
     type: 3}
   ProjectileSprite: {fileID: 0}
@@ -23,6 +24,7 @@ MonoBehaviour:
   WeaponVisualMirrorX: 0
   WeaponVisualMirrorY: 0
   MuzzleOffset: {x: 0.45, y: 0}
+  Damage: 10
   FireRate: 6
   ProjectileSpeed: 10
   ProjectileLifetime: 2

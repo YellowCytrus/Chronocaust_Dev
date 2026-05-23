@@ -54,6 +54,10 @@ namespace Chronocaust.Ecs
         {
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             Sprite uiSprite = Resources.GetBuiltinResource<Sprite>("UISprite.psd");
+            if (uiSprite == null)
+            {
+                uiSprite = Resources.GetBuiltinResource<Sprite>("Knob.png");
+            }
 
             GameObject canvasGo = new GameObject("CombatHudCanvas");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
@@ -264,10 +268,7 @@ namespace Chronocaust.Ecs
             Image fill = fillGo.AddComponent<Image>();
             fill.sprite = sprite;
             fill.color = fillColor;
-            fill.type = Image.Type.Filled;
-            fill.fillMethod = Image.FillMethod.Horizontal;
-            fill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            fill.fillAmount = 1f;
+            fill.type = Image.Type.Simple;
             fill.raycastTarget = false;
             return fill;
         }

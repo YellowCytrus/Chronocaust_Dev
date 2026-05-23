@@ -88,7 +88,6 @@ namespace Chronocaust.Ecs
             world.AddSystem(new ShotgunShootSystem());
             world.AddSystem(new LaserBeamSystem(registry));
             world.AddSystem(new MeleeAttackSystem(registry));
-            world.AddSystem(new EnemyAttackSystem());
             world.AddSystem(new EnemyDeathSystem());
             world.AddSystem(new ProjectileLifetimeSystem());
             world.AddSystem(new BeamLifetimeSystem());
@@ -100,12 +99,13 @@ namespace Chronocaust.Ecs
             world.AddSystem(new BeamAnimationSystem());
             world.AddSystem(new CharacterAnimationSystem());
             world.AddSystem(new GroundWeaponHintSystem());
-            world.AddSystem(new PlayerHudSystem());
+            world.AddSystem(new PlayerHudSystem(hudAuthoring));
 
             // Simulation — FixedUpdate
             world.AddSystem(new RecoilDecaySystem());
             world.AddSystem(new PlayerMovementSystem());
             world.AddSystem(new EnemyChaseSystem());
+            world.AddSystem(new EnemyAttackSystem());
             world.AddSystem(new ProjectileHitSystem(registry, damageableLayers));
             world.AddSystem(new ProjectileMovementSystem());
         }

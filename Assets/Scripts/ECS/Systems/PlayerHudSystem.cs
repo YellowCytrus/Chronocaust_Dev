@@ -1,3 +1,4 @@
+using Chronocaust.Ecs;
 using Chronocaust.Ecs.Components;
 using Chronocaust.Ecs.Core;
 using UnityEngine;
@@ -7,104 +8,149 @@ namespace Chronocaust.Ecs.Systems
 {
     /// <summary>
     /// Rendering layer: mirrors ECS combat state onto screen-space UGUI.
+    /// View references are read from <see cref="PlayerHudAuthoring"/> each frame so UI stays
+    /// valid even when the player archetype migrates (weapon pickup / slot switch).
     /// </summary>
     public sealed class PlayerHudSystem : IEcsUpdateSystem
     {
-        private EcsQuery<PlayerTagComponent, HealthComponent, WeaponLoadoutComponent,
-            EquippedWeaponComponent, WeaponCooldownComponent, PlayerHudViewComponent> _query;
+        private readonly PlayerHudAuthoring _hudAuthoring;
+
+        private EcsQuery<PlayerTagComponent, HealthComponent> _healthQuery;
+        private EcsQuery<PlayerTagComponent, WeaponLoadoutComponent, EquippedWeaponComponent,
+            WeaponCooldownComponent> _weaponQuery;
+
+        public PlayerHudSystem(PlayerHudAuthoring hudAuthoring)
+        {
+            _hudAuthoring = hudAuthoring;
+        }
 
         public void Update(EcsWorld world, float deltaTime)
         {
-            _query ??= world.CreateQuery<PlayerTagComponent, HealthComponent, WeaponLoadoutComponent,
-                EquippedWeaponComponent, WeaponCooldownComponent, PlayerHudViewComponent>();
-
-            _query.ForEach((EntityId id,
-                ref PlayerTagComponent _,
-                ref HealthComponent health,
-                ref WeaponLoadoutComponent loadout,
-                ref EquippedWeaponComponent equipped,
-                ref WeaponCooldownComponent cooldown,
-                ref PlayerHudViewComponent hud) =>
+            if (_hudAuthoring == null)
             {
-                if (hud.HealthFill == null)
+                return;
+            }
+
+            if (!_hudAuthoring.TryGetView(out PlayerHudViewComponent hud))
+            {
+                _hudAuthoring.EnsureBuilt();
+                if (!_hudAuthoring.TryGetView(out hud))
                 {
                     return;
                 }
+            }
 
-                float ratio = health.Ratio;
-                hud.HealthFill.fillAmount = ratio;
+            _healthQuery ??= world.CreateQuery<PlayerTagComponent, HealthComponent>();
+            _weaponQuery ??= world.CreateQuery<PlayerTagComponent, WeaponLoadoutComponent,
+                EquippedWeaponComponent, WeaponCooldownComponent>();
+
+            _healthQuery.ForEach((EntityId _,
+                ref PlayerTagComponent __,
+                ref HealthComponent health) =>
+            {
+                UpdateHealthDisplay(hud, in health);
+            });
+
+            _weaponQuery.ForEach((EntityId id,
+                ref PlayerTagComponent _,
+                ref WeaponLoadoutComponent loadout,
+                ref EquippedWeaponComponent equipped,
+                ref WeaponCooldownComponent cooldown) =>
+            {
+                UpdateWeaponDisplay(world, id, hud, in loadout, in equipped, in cooldown);
+            });
+        }
+
+        private static void UpdateHealthDisplay(in PlayerHudViewComponent hud, in HealthComponent health)
+        {
+            float max = health.Max > 0f ? health.Max : 1f;
+            float ratio = Mathf.Clamp01(health.Current / max);
+
+            if (hud.HealthFill != null)
+            {
+                // Anchor-based width — works even when UISprite.psd is missing (Unity 6+).
+                RectTransform fillRt = hud.HealthFill.rectTransform;
+                fillRt.anchorMin = new Vector2(0f, 0f);
+                fillRt.anchorMax = new Vector2(ratio, 1f);
+                fillRt.offsetMin = Vector2.zero;
+                fillRt.offsetMax = Vector2.zero;
+                hud.HealthFill.type = Image.Type.Simple;
                 hud.HealthFill.color = ratio <= 0.25f
                     ? CombatHudTheme.HealthLow
                     : CombatHudTheme.AccentFrost;
+            }
 
-                int current = Mathf.CeilToInt(Mathf.Max(0f, health.Current));
-                int max = Mathf.CeilToInt(Mathf.Max(1f, health.Max));
+            int current = Mathf.CeilToInt(Mathf.Max(0f, health.Current));
+            int maxDisplay = Mathf.CeilToInt(max);
 
-                if (hud.HealthLabelText != null)
+            if (hud.HealthLabelText != null)
+            {
+                hud.HealthLabelText.text = "HP";
+                hud.HealthLabelText.gameObject.SetActive(true);
+            }
+
+            if (hud.HealthValueText != null)
+            {
+                hud.HealthValueText.text = $"{current} / {maxDisplay}";
+                hud.HealthValueText.gameObject.SetActive(true);
+            }
+        }
+
+        private static void UpdateWeaponDisplay(EcsWorld world, EntityId id, in PlayerHudViewComponent hud,
+            in WeaponLoadoutComponent loadout, in EquippedWeaponComponent equipped, in WeaponCooldownComponent cooldown)
+        {
+            bool hasWeapon = equipped.HasWeapon;
+            ComponentSignature sig = world.GetSignature(id);
+            float cooldown01 = ComputeCooldown01(hasWeapon, in equipped, in cooldown);
+
+            if (hud.WeaponIcon != null)
+            {
+                hud.WeaponIcon.sprite = hasWeapon ? equipped.WeaponSprite : null;
+                hud.WeaponIcon.enabled = hasWeapon && equipped.WeaponSprite != null;
+                hud.WeaponIcon.color = hasWeapon
+                    ? Color.white
+                    : new Color(0.55f, 0.65f, 0.72f, 0.45f);
+            }
+
+            UpdateSlotIcon(hud.Slot0Icon, hud.Slot0Frame, in loadout.Slot0, loadout.ActiveIndex == 0);
+            UpdateSlotIcon(hud.Slot1Icon, hud.Slot1Frame, in loadout.Slot1, loadout.ActiveIndex == 1);
+
+            if (hud.WeaponNameText != null)
+            {
+                string slotTag = loadout.ActiveIndex == 0 ? "[1]" : "[2]";
+                hud.WeaponNameText.text = hasWeapon
+                    ? $"{slotTag} {ResolveWeaponName(in equipped, hasWeapon, sig)}"
+                    : $"{slotTag} Unarmed";
+            }
+
+            if (hud.WeaponStatsText != null)
+            {
+                hud.WeaponStatsText.text = hasWeapon
+                    ? BuildWeaponStats(world, id, in equipped, sig)
+                    : "<color=#9BB4C4>Empty slot — pick up or switch</color>";
+            }
+
+            if (hud.CooldownOverlay != null)
+            {
+                hud.CooldownOverlay.fillAmount = cooldown01;
+                hud.CooldownOverlay.enabled = cooldown01 > 0.001f;
+            }
+
+            if (hud.CooldownBarFill != null)
+            {
+                hud.CooldownBarFill.fillAmount = cooldown01;
+                bool showBar = hasWeapon;
+                hud.CooldownBarFill.enabled = showBar;
+                if (hud.CooldownBarFill.transform.parent != null)
                 {
-                    hud.HealthLabelText.text = "HP";
-                    hud.HealthLabelText.gameObject.SetActive(true);
+                    hud.CooldownBarFill.transform.parent.gameObject.SetActive(showBar);
                 }
+            }
 
-                if (hud.HealthValueText != null)
-                {
-                    hud.HealthValueText.text = $"{current} / {max}";
-                    hud.HealthValueText.gameObject.SetActive(true);
-                }
-
-                bool hasWeapon = equipped.HasWeapon;
-                ComponentSignature sig = world.GetSignature(id);
-                float cooldown01 = ComputeCooldown01(hasWeapon, in equipped, in cooldown);
-
-                if (hud.WeaponIcon != null)
-                {
-                    hud.WeaponIcon.sprite = hasWeapon ? equipped.WeaponSprite : null;
-                    hud.WeaponIcon.enabled = hasWeapon && equipped.WeaponSprite != null;
-                    hud.WeaponIcon.color = hasWeapon
-                        ? Color.white
-                        : new Color(0.55f, 0.65f, 0.72f, 0.45f);
-                }
-
-                UpdateSlotIcon(hud.Slot0Icon, hud.Slot0Frame, in loadout.Slot0, loadout.ActiveIndex == 0);
-                UpdateSlotIcon(hud.Slot1Icon, hud.Slot1Frame, in loadout.Slot1, loadout.ActiveIndex == 1);
-
-                if (hud.WeaponNameText != null)
-                {
-                    string slotTag = loadout.ActiveIndex == 0 ? "[1]" : "[2]";
-                    hud.WeaponNameText.text = hasWeapon
-                        ? $"{slotTag} {ResolveWeaponName(in equipped, hasWeapon, sig)}"
-                        : $"{slotTag} Unarmed";
-                }
-
-                if (hud.WeaponStatsText != null)
-                {
-                    hud.WeaponStatsText.text = hasWeapon
-                        ? BuildWeaponStats(world, id, in equipped, sig)
-                        : "<color=#9BB4C4>Empty slot — pick up or switch</color>";
-                }
-
-                if (hud.CooldownOverlay != null)
-                {
-                    hud.CooldownOverlay.fillAmount = cooldown01;
-                    hud.CooldownOverlay.enabled = cooldown01 > 0.001f;
-                }
-
-                if (hud.CooldownBarFill != null)
-                {
-                    hud.CooldownBarFill.fillAmount = cooldown01;
-                    bool showBar = hasWeapon;
-                    hud.CooldownBarFill.enabled = showBar;
-                    if (hud.CooldownBarFill.transform.parent != null)
-                    {
-                        hud.CooldownBarFill.transform.parent.gameObject.SetActive(showBar);
-                    }
-                }
-
-                if (hud.HintText != null)
-                {
-                    hud.HintText.text = "[1][2] switch  ·  [G] drop  ·  [E] pick up";
-                }
-            });
+            if (hud.HintText != null)
+            {
+                hud.HintText.text = "[1][2] switch  ·  [G] drop  ·  [E] pick up";
+            }
         }
 
         private static void UpdateSlotIcon(Image icon, Image frame, in WeaponSlotEntry entry, bool isActive)
